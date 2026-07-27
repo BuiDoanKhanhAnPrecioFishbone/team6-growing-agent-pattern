@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AIAssistant.Orchestrator</RootNamespace>
+  </PropertyGroup>
+
+  <!-- The value-investor pipeline: runs S1→S6 in sequence over one candidate file, auto-confirming the
+       human gates. References the six agent projects so it runs them in-process (reliable for the demo);
+       each agent is equally runnable as its own HTTP service. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\shared\AIAssistant.AgentHarness\AIAssistant.AgentHarness.csproj" />
+    <ProjectReference Include="..\s1-screen\AIAssistant.S1.Screen.csproj" />
+    <ProjectReference Include="..\s2-moat\AIAssistant.S2.Moat.csproj" />
+    <ProjectReference Include="..\s3-financials\AIAssistant.S3.Financials.csproj" />
+    <ProjectReference Include="..\s4-valuation\AIAssistant.S4.Valuation.csproj" />
+    <ProjectReference Include="..\s5-allocate\AIAssistant.S5.Allocate.csproj" />
+    <ProjectReference Include="..\s6-monitor\AIAssistant.S6.Monitor.csproj" />
+  </ItemGroup>
+
+</Project>

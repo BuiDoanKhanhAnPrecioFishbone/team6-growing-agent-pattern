@@ -1,71 +1,88 @@
 # The Growing-Agent Pattern
 
-A small, reusable pattern for building **agents that get better run-to-run** — on a hosted LLM
-(Azure AI Foundry), cost-optimized, with **no GPU and no model training required**.
+A solution of **six value-investing agents** that get **better run-to-run** on a hosted LLM
+(Azure AI Foundry), cost-optimized, with **no GPU and no model training**. Each agent is a policy in a
+deterministic environment, driven by **one reward** that gates it now (and could train it later),
+writing a **lesson** to memory after every run so the next run is smarter — and the whole S1→S6
+pipeline compounds.
 
-Each agent is a policy inside a deterministic environment, driven by **one reward** that gates it now
-(and could train it later), writing a **lesson** to memory after every run so the next run is smarter.
-Built for the team6 value-investing analyzer, but the harness is domain-agnostic.
+> **Start with [`PATTERN.md`](PATTERN.md)** — the playbook (why it works, why Foundry can't run ART,
+> the contract, the invariants). Then [`RUNNING.md`](RUNNING.md) to run it and wire credentials.
 
-> **Start with [`PATTERN.md`](PATTERN.md)** — the full playbook (why it works, why a Foundry-hosted
-> model can't run ART, the contract, the invariants). Then [`RUNNING.md`](RUNNING.md) to run it.
-
-## What's inside
+## Solution layout (`GrowingAgentPattern.slnx`)
 
 ```
-shared/AIAssistant.AgentHarness/          the pattern AS CODE (loop + reward contract + memory interface)
-shared/AIAssistant.AgentHarness.Cosmos/   Azure-native memory backing (Cosmos DB, partition /agent)
-_template/                                 COPY ME to build a new agent — implement three methods
-s2/                                        reference implementation: the Moat agent
-docs/                                      the playbook & pitch one-pagers (open in a browser)
-PATTERN.md · RUNNING.md                    the guide and the run/credentials/hosting doc
+shared/
+  AIAssistant.AgentHarness/          the pattern AS CODE (fast loop + reward contract + memory interface)
+  AIAssistant.AgentHarness.Cosmos/   Azure-native memory backing (Cosmos DB, partition /agent)
+  AIAssistant.AgentHost/             one-line HTTP host + authoring helpers, so each agent is ~3 files
+s1-screen/  s2-moat/  s3-financials/  s4-valuation/  s5-allocate/  s6-monitor/
+                                     the SIX agents — each its own runnable service (ports 5301–5306)
+orchestrator/                        runs S1→S6 over one candidate file, auto-confirming the 4 human gates
+_template/                           COPY ME to build a new agent — implement three methods
+docs/                                the playbook & pitch one-pagers
 ```
+
+Every agent implements the same three-method `IAgent` contract on the shared harness. The loop, memory
+and reward-shape are written **once** and never re-implemented per agent.
 
 ## Quickstart
 
 ```bash
-# 1. build everything
-dotnet build s2/AIAssistant.S2.Api.csproj
+dotnet build GrowingAgentPattern.slnx
 
-# 2. run the reference agent — OFFLINE (deterministic mock; no credentials needed)
-dotnet run --project s2          # → http://localhost:5302
-
-# 3. watch it learn run-to-run
-curl -s -X POST localhost:5302/run -H 'content-type: application/json' -d @s2/examples/vnm-input.json
-curl -s -X POST localhost:5302/run -H 'content-type: application/json' -d @s2/examples/msn-input.json
-curl -s localhost:5302/lessons   # the memory, with hit-rates
+# Run the whole pipeline (offline mock — no credentials needed), twice, to see it compound:
+dotnet run --project orchestrator -- --fresh
 ```
 
-Run 1 stumbles and fixes a mistake (2 iterations, learns a lesson); run 2 has the lesson injected and
-gets it right first try (1 iteration). Fewer iterations = lower cost. That is the whole idea.
+Run 1 (VNM): every agent stumbles once on its own learnable flaw, fixes it, writes a lesson → 12 iters.
+Run 2 (MSN, same industry): each agent has its lesson injected and gets it right first try → **6 iters**.
+Fewer iterations = lower cost, pipeline-wide. Ends with a full recommendation (BUY, size, entry, monitor).
 
-## Point it at Azure AI Foundry (no code change)
+### Run a single agent as its own service
+
+```bash
+dotnet run --project s1-screen          # → http://localhost:5301
+curl -s localhost:5301/                 # {"service":"s1-screen","block":"screen","status":"up"}
+curl -s -X POST localhost:5301/run -H 'content-type: application/json' \
+  -d '{"ticker":"VNM","industry":"consumer_staples","sources":["AR2025 p.12"]}'
+curl -s localhost:5301/lessons          # what this agent has learned, with hit-rates
+```
+
+Ports: s1 5301 · s2 5302 · s3 5303 · s4 5304 · s5 5305 · s6 5306.
+
+## The six agents
+
+| S | Agent | Human gate | Grounding gate → learnable trigger |
+|---|-------|-----------|-------------------------------------|
+| 1 | Screen | #1 shortlist | echo enforced criteria → `MISSING_CRITERIA` |
+| 2 | Moat | #2 strength | cite only provided sources → `UNCITED_SOURCE` |
+| 3 | Financials | — | surface fired red flags → `MISSING_REDFLAG` |
+| 4 | Valuation | #3 assumptions | type every assumption (needs confirmed moat) → `UNTYPED_ASSUMPTION` |
+| 5 | Allocate | #4 buy/size | a buy must carry the disclaimer → `MISSING_DISCLAIMER` |
+| 6 | Monitor | act on alerts | every alert cited → `UNSOURCED_ALERT` |
+
+## Point it at Azure AI Foundry
 
 ```powershell
 $env:AGENT_LLM_BASE_URL = "https://<your-resource>.openai.azure.com/openai/v1"   # the Azure OpenAI endpoint
 $env:AGENT_LLM_API_KEY  = "<key>"
 $env:AGENT_LLM_MODEL    = "<your-deployment-name>"
-dotnet run --project s2
 ```
 
-Full recipes (Azure OpenAI classic, local vLLM, Key Vault + managed identity) and **hosting each agent
-on Azure Container Apps** are in [`RUNNING.md`](RUNNING.md).
+Memory backing: set `AGENT_COSMOS_CONNECTION` for Cosmos DB, otherwise a local JSON file is used.
+Full recipes + hosting on Azure Container Apps are in [`RUNNING.md`](RUNNING.md).
 
 ## Build a new agent
 
 ```
-cp -r _template sN     # rename csproj, Id ("sN-name"), port
-# implement three methods: GenerateAsync, Evaluate (the reward), LessonFor
+cp -r _template sN            # rename csproj, Id ("sN-name"), port, blockKey
+# implement three methods in your Agent.cs: GenerateAsync, Evaluate (the reward), LessonFor
 dotnet run --project sN
 ```
 
 See `PATTERN.md §7–§10` for the contract, the five design decisions, and the checklist.
 
-## Read the visual playbook
-
-`docs/growing-agent-pattern.html` — the team playbook. `docs/compounding-analyst.html` — the pitch
-one-pager. Open either in a browser (or host `docs/` with GitHub Pages).
-
 ---
-*Requires .NET 8 SDK. No secrets are stored in this repo — credentials are supplied via environment
-variables at runtime.*
+*Requires .NET 8 SDK. The agents run offline with deterministic mock models; supply `AGENT_LLM_*` to use
+a real model. No secrets are stored in this repo.*

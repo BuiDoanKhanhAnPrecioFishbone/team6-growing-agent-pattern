@@ -5,18 +5,18 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>AIAssistant.STemplate.Api</RootNamespace>
+    <RootNamespace>AIAssistant.STemplate</RootNamespace>
   </PropertyGroup>
 
   <!--
-    COPY ME to build a new growing agent (S1, S3, S4, S5, S6).
-    1. Copy this folder to agents/sN.  2. Rename the csproj + port.
-    3. Implement the three TODOs in TemplateAgent.cs.  4. dotnet run. Done.
-    The loop, memory and reward-contract come from the shared harness — you never touch them.
+    COPY ME to build a new growing agent (S1..S6 were built exactly this way).
+    1. Copy this folder to agents/sN.  2. Rename the csproj + Id + port + blockKey.
+    3. Implement the three methods in TemplateAgent.cs.  4. dotnet run. Done.
+    The loop, memory, host and reward-contract come from the shared libraries — you never touch them.
   -->
 
   <ItemGroup>
-    <ProjectReference Include="..\shared\AIAssistant.AgentHarness\AIAssistant.AgentHarness.csproj" />
+    <ProjectReference Include="..\shared\AIAssistant.AgentHost\AIAssistant.AgentHost.csproj" />
   </ItemGroup>
 
 </Project>

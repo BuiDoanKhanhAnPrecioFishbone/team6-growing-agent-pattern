@@ -221,7 +221,7 @@ Before writing code, answer these. They *are* the design of your agent.
 ```
 [ ] 1. cp -r agents/_template agents/sN
 [ ] 2. Rename the .csproj, RootNamespace, Id ("sN-name"), and the port in launchSettings.json
-[ ] 3. Define your domain draft type + JSON options (see s2/Domain/Moat.cs)
+[ ] 3. Define your block shape (see any agent's *Agent.cs, e.g. s2-moat/MoatAgent.cs)
 [ ] 4. Decide the FIVE decisions (§8) — write them at the top of your agent as a comment
 [ ] 5. Implement Evaluate  (the reward: gates → triggers → graded → critique)   ← spend your time here
 [ ] 6. Implement GenerateAsync  (Foundry model via ChatClient; keep a deterministic mock for offline demo)
@@ -256,7 +256,7 @@ RUN 2 · MSN   iterations: 1   firstScore: 1.0 (lesson injected up front)   best
 
 Run 1 stumbles and fixes it; run 2 never stumbles. Fewer iterations = **lower token cost**.
 
-**Reference implementation:** `agents/s2` (Moat) · **Start here:** `agents/_template`.
+**Reference implementations:** `s1-screen` … `s6-monitor` · **Full flow:** `orchestrator` · **Start here:** `_template`.
 
 ---
 

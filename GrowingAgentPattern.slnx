@@ -1,0 +1,31 @@
+<Solution>
+  <Folder Name="/orchestrator/">
+    <Project Path="orchestrator/AIAssistant.Orchestrator.csproj" />
+  </Folder>
+  <Folder Name="/s1-screen/">
+    <Project Path="s1-screen/AIAssistant.S1.Screen.csproj" />
+  </Folder>
+  <Folder Name="/s2-moat/">
+    <Project Path="s2-moat/AIAssistant.S2.Moat.csproj" />
+  </Folder>
+  <Folder Name="/s3-financials/">
+    <Project Path="s3-financials/AIAssistant.S3.Financials.csproj" />
+  </Folder>
+  <Folder Name="/s4-valuation/">
+    <Project Path="s4-valuation/AIAssistant.S4.Valuation.csproj" />
+  </Folder>
+  <Folder Name="/s5-allocate/">
+    <Project Path="s5-allocate/AIAssistant.S5.Allocate.csproj" />
+  </Folder>
+  <Folder Name="/s6-monitor/">
+    <Project Path="s6-monitor/AIAssistant.S6.Monitor.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/AIAssistant.AgentHarness.Cosmos/AIAssistant.AgentHarness.Cosmos.csproj" />
+    <Project Path="shared/AIAssistant.AgentHarness/AIAssistant.AgentHarness.csproj" />
+    <Project Path="shared/AIAssistant.AgentHost/AIAssistant.AgentHost.csproj" />
+  </Folder>
+  <Folder Name="/_template/">
+    <Project Path="_template/AIAssistant.STemplate.Api.csproj" />
+  </Folder>
+</Solution>
