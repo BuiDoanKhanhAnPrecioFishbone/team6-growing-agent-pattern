@@ -23,7 +23,7 @@ public sealed class MoatAgent : IAgent
                 new JsonObject { ["claim"] = "Consistently high gross margins indicate a durable brand advantage.", ["source"] = third }),
             ["humanConfirmed"] = false,
         };
-        return Task.FromResult(block.ToJsonString(Kit.J));
+        return Model.Generate(block.ToJsonString(Kit.J), ctx, lessons, critique, Id, ct);
     }
 
     public Reward Evaluate(string draft, AgentContext ctx)

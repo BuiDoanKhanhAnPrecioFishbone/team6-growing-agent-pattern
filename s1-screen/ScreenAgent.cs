@@ -28,7 +28,7 @@ public sealed class ScreenAgent : IAgent
                 ["roe5yMin"] = 0.15, ["netMarginTrend"] = "stable_or_rising",
                 ["deToEquityMax"] = 1.0, ["fcfPositiveYears"] = 4, ["epsGrowthMin"] = 0.05,
             };
-        return Task.FromResult(block.ToJsonString(Kit.J));
+        return Model.Generate(block.ToJsonString(Kit.J), ctx, lessons, critique, Id, ct);
     }
 
     public Reward Evaluate(string draft, AgentContext ctx)

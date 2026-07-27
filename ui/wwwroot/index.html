@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Growing-Agent Flow · Control Panel</title>
+<style>
+  :root{
+    --bg:#0c1013;--surface:#141a1e;--surface2:#1b2329;--ink:#e6ebe9;--muted:#8a97a0;--faint:#66727a;
+    --hair:#232c31;--accent:#2dcf9c;--accent-dim:#2dcf9c1f;--amber:#e0a745;--clay:#e07a5f;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+  a{color:var(--accent)}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 20px 80px}
+  header.bar{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--hair);font-family:var(--mono);font-size:.75rem;letter-spacing:.04em;color:var(--faint);text-transform:uppercase}
+  header.bar .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+  h1{font-family:var(--mono);font-weight:600;font-size:1.7rem;letter-spacing:-.02em;margin:26px 0 4px}
+  h1 .g{color:var(--accent)}
+  .sub{color:var(--muted);margin:0 0 20px;max-width:70ch}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:12px;margin-bottom:8px}
+  .controls .co{display:flex;gap:6px}
+  button{font-family:var(--mono);font-size:.8rem;border:1px solid var(--hair);background:var(--surface2);color:var(--ink);padding:8px 12px;border-radius:6px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#06120d;border-color:var(--accent);font-weight:700}
+  button.ghost{background:transparent}
+  button.chip{padding:5px 10px;font-size:.72rem}
+  button.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+  input{font-family:var(--mono);font-size:.8rem;background:var(--surface2);border:1px solid var(--hair);color:var(--ink);padding:7px 9px;border-radius:6px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .grid{display:grid;grid-template-columns:1.4fr .9fr;gap:18px;margin-top:18px;align-items:start}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--surface);border:1px solid var(--hair);border-radius:8px;overflow:hidden}
+  .panel h2{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:0;padding:12px 14px;border-bottom:1px solid var(--hair);background:var(--surface2)}
+  .stage{border-bottom:1px solid var(--hair);padding:12px 14px}
+  .stage:last-child{border-bottom:0}
+  .stage .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .sid{font-family:var(--mono);font-weight:600;color:var(--accent)}
+  .pill{font-family:var(--mono);font-size:.66rem;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.06em}
+  .pill.pass{background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent)}
+  .pill.fail{background:#e07a5f22;color:var(--clay);border:1px solid var(--clay)}
+  .pill.idle{background:transparent;color:var(--faint);border:1px solid var(--hair)}
+  .meta{font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-left:auto}
+  .chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+  .tag{font-family:var(--mono);font-size:.66rem;padding:2px 7px;border-radius:4px;border:1px solid var(--hair);color:var(--muted)}
+  .tag.learn{color:var(--amber);border-color:var(--amber)}
+  .tag.use{color:var(--accent);border-color:var(--accent)}
+  .tag.gate{color:var(--amber);border-color:var(--amber);background:#e0a74514}
+  .stage .acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  pre{margin:8px 0 0;background:#0a0e11;border:1px solid var(--hair);border-radius:6px;padding:10px;overflow:auto;font-family:var(--mono);font-size:.72rem;color:#bcd;max-height:230px}
+  .teach{margin-top:9px;padding:10px;border:1px dashed var(--hair);border-radius:6px;background:#0a0e11;display:none}
+  .teach.open{display:block}
+  .teach label{display:block;font-family:var(--mono);font-size:.66rem;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin:6px 0 3px}
+  .teach input{width:100%}
+  .reco{padding:14px}
+  .reco .big{font-family:var(--mono);font-size:1.5rem;font-weight:700;color:var(--accent)}
+  .reco .line{font-family:var(--mono);font-size:.8rem;color:var(--muted);margin-top:4px}
+  table{width:100%;border-collapse:collapse;font-size:.76rem}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--hair);font-family:var(--mono)}
+  th{color:var(--faint);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase}
+  td.hr{color:var(--accent)}
+  .note{font-family:var(--mono);font-size:.74rem;color:var(--muted);padding:10px 14px;border-top:1px solid var(--hair)}
+  .compound{margin-top:8px;font-family:var(--mono);font-size:.8rem;color:var(--accent);min-height:1.2em}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#06120d;font-family:var(--mono);font-size:.78rem;font-weight:700;padding:10px 16px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+  #toast.show{opacity:1}
+  .empty{padding:26px 14px;color:var(--faint);font-family:var(--mono);font-size:.8rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar"><span class="dot"></span><span>team6 · growing-agent flow</span><span style="margin-left:auto" id="status">connecting…</span></header>
+
+  <h1>Growing-Agent <span class="g">Flow</span></h1>
+  <p class="sub">Run the value-investing pipeline, inspect each agent's result, then <b>evaluate &amp; teach</b> — your feedback becomes a lesson the agent applies next run (and the ART training corpus later). Reset memory and re-run to watch the whole pipeline compound.</p>
+
+  <div class="controls">
+    <div class="co">
+      <button class="chip on" data-co="VNM" onclick="pick(this)">VNM · Vinamilk</button>
+      <button class="chip" data-co="MSN" onclick="pick(this)">MSN · Masan</button>
+      <button class="chip" data-co="FPT" data-ind="technology" onclick="pick(this)">FPT · tech</button>
+    </div>
+    <span style="flex:1"></span>
+    <button class="primary" id="runBtn" onclick="run()">▶ Run flow</button>
+    <button class="ghost" onclick="resetMem()">⟲ Reset memory</button>
+  </div>
+  <div class="compound" id="compound"></div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Pipeline — six agents</h2>
+      <div id="stages"><div class="empty">Click “Run flow” to start.</div></div>
+    </div>
+
+    <div>
+      <div class="panel" style="margin-bottom:18px">
+        <h2>Recommendation</h2>
+        <div id="reco" class="reco"><div class="empty" style="padding:8px 0">—</div></div>
+      </div>
+      <div class="panel">
+        <h2>Memory — lessons &amp; hit-rate</h2>
+        <div id="lessons"><div class="empty">No lessons yet.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const RULES = {
+  "s1-screen":     {t:"MISSING_CRITERIA",   w:"Always echo criteriaUsed — the exact thresholds enforced — so the rank is auditable."},
+  "s2-moat":       {t:"UNCITED_SOURCE",     w:"Cite ONLY the provided sources — never invent a page, URL or 'analyst estimate'."},
+  "s3-financials": {t:"MISSING_REDFLAG",    w:"Always surface every fired red flag (e.g. TURNOVER_DECLINE) — never emit empty red_flags when a rule fired."},
+  "s4-valuation":  {t:"UNTYPED_ASSUMPTION", w:"Type every assumption by basis (computed | cited | human_override) — never leave basis empty."},
+  "s5-allocate":   {t:"MISSING_DISCLAIMER", w:"Every buy recommendation must include the educational/not-advice disclaimer."},
+  "s6-monitor":    {t:"UNSOURCED_ALERT",    w:"Every monitoring alert must cite its source (e.g. a statement period)."},
+};
+const PRESET = { VNM:{name:"Vietnam Dairy Products JSC (Vinamilk)",ind:"consumer_staples"}, MSN:{name:"Masan Consumer Corporation",ind:"consumer_staples"}, FPT:{name:"FPT Corporation",ind:"technology"} };
+let sel = "VNM", lastTotal = null;
+
+function pick(b){ document.querySelectorAll('[data-co]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); sel=b.dataset.co; }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+function esc(s){ return (s??'').toString().replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function run(){
+  const btn=document.getElementById('runBtn'); btn.disabled=true; btn.textContent='running…';
+  const p=PRESET[sel]||{name:sel,ind:'consumer_staples'};
+  try{
+    const r=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ticker:sel,name:p.name,industry:p.ind})});
+    const d=await r.json();
+    renderStages(d.stages); renderReco(d);
+    const c=document.getElementById('compound');
+    if(lastTotal!==null){ const diff=lastTotal-d.totalIterations; c.textContent = diff>0 ? `▚ pipeline total ${d.totalIterations} iters — ${diff} fewer than the previous run: the agents reused their lessons.` : `▚ pipeline total ${d.totalIterations} iterations`; }
+    else c.textContent=`▚ pipeline total ${d.totalIterations} iterations (first run — agents learning from scratch)`;
+    lastTotal=d.totalIterations;
+    loadLessons();
+  }catch(e){ toast('run failed'); }
+  btn.disabled=false; btn.textContent='▶ Run flow';
+}
+
+function renderStages(stages){
+  document.getElementById('stages').innerHTML = stages.map((s,i)=>{
+    const rule=RULES[s.id]||{t:'',w:''};
+    const learned=(s.learned||[]).map(x=>`<span class="tag learn">learned ${esc(x)}</span>`).join('');
+    const used=(s.injected||[]).map(x=>`<span class="tag use">used ${esc(x)}</span>`).join('');
+    const gate=s.gate?`<span class="tag gate">🧑 ${esc(s.gate)}</span>`:'';
+    return `<div class="stage">
+      <div class="top">
+        <span class="sid">S${i+1} · ${esc(s.id)}</span>
+        <span class="pill ${s.pass?'pass':'fail'}">${s.pass?'pass':'fail'}</span>
+        ${gate}
+        <span class="meta">${s.iterations} iter · ${(s.firstScore).toFixed(2)}→${(s.score).toFixed(2)}</span>
+      </div>
+      <div class="chips">${learned}${used}</div>
+      <div class="acts">
+        <button class="chip" onclick="tog('b${i}')">result</button>
+        <button class="chip" onclick="tog('t${i}')">✎ evaluate &amp; teach</button>
+      </div>
+      <pre id="b${i}" style="display:none">${esc(JSON.stringify(s.block,null,2))}</pre>
+      <div class="teach" id="t${i}">
+        <div style="font-size:.76rem;color:var(--muted)">Reject this output and teach a rule — it becomes a lesson injected on the next run.</div>
+        <label>trigger (rule id)</label><input id="tt${i}" value="${esc(rule.t)}"/>
+        <label>lesson (what the agent must do)</label><input id="tw${i}" value="${esc(rule.w)}"/>
+        <div style="margin-top:8px"><button class="primary chip" onclick="teach('${s.id}','${esc(sel)}',${i})">Teach agent</button></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderReco(d){
+  const c=d.candidate||{}; const f=c.financials||{}, mo=c.moat||{}, v=c.valuation||{}, a=c.allocation||{}, m=c.monitoring||{};
+  if(!a.decision){ document.getElementById('reco').innerHTML='<div class="empty" style="padding:8px 0">flow did not complete</div>'; return; }
+  const mid=v.intrinsic_value_range?((v.intrinsic_value_range.low+v.intrinsic_value_range.high)/2):0;
+  const mos=v.margin_of_safety?v.margin_of_safety.vs_mid:0;
+  document.getElementById('reco').innerHTML=`
+    <div class="big">${(a.decision||'').toUpperCase()} · ${(a.positionSizePct*100).toFixed(1)}%</div>
+    <div class="line">${esc(d.ticker)} — ${esc(d.name)}</div>
+    <div class="line">health ${esc((f.health_verdict||{}).grade)} · moat ${esc(mo.moatStrength)}/${esc(mo.moatTrend)}</div>
+    <div class="line">intrinsic ≈ ${mid.toLocaleString()} vs price ${(v.price||{}).value?.toLocaleString()} · MoS ${(mos*100).toFixed(0)}%</div>
+    <div class="line">entry ≤ ${a.entryTarget?.toLocaleString()??'—'} · monitor: ${esc((m).thesisStatus)}, ${(m.alerts||[]).length} alert(s)</div>`;
+}
+
+async function teach(agent,sector,i){
+  const trigger=document.getElementById('tt'+i).value.trim(), warning=document.getElementById('tw'+i).value.trim();
+  const p=PRESET[sel]; const sec=p?p.ind:'consumer_staples';
+  const r=await fetch('/api/teach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({agent,sector:sec,trigger,warning})});
+  if(r.ok){ toast('lesson taught — re-run to see '+agent+' apply it'); loadLessons(); } else toast('teach failed');
+}
+
+async function loadLessons(){
+  const r=await fetch('/api/lessons'); const ls=await r.json();
+  const el=document.getElementById('lessons');
+  if(!ls.length){ el.innerHTML='<div class="empty">No lessons yet — run the flow.</div>'; return; }
+  el.innerHTML='<table><thead><tr><th>agent · rule</th><th>src</th><th>hit</th><th>×</th></tr></thead><tbody>'+
+    ls.sort((a,b)=>a.id.localeCompare(b.id)).map(l=>`<tr title="${esc(l.warning)}"><td>${esc(l.agent.replace('s','S').replace('-',' '))} · ${esc(l.trigger)}</td><td>${esc(l.learnedFrom)}</td><td class="hr">${(l.hitRate).toFixed(2)}</td><td>${l.timesApplied}</td></tr>`).join('')+
+    '</tbody></table><div class="note">“src=human” = taught via this panel. hit = timesHelped ÷ timesApplied.</div>';
+}
+
+async function resetMem(){ await fetch('/api/reset',{method:'POST'}); lastTotal=null; document.getElementById('compound').textContent=''; loadLessons(); toast('memory wiped — next run learns from scratch'); }
+function tog(id){ const e=document.getElementById(id); if(e.classList.contains('teach')){ e.classList.toggle('open'); } else { e.style.display = e.style.display==='none' ? 'block' : 'none'; } }
+
+async function loadStatus(){ try{ const r=await fetch('/api/status'); const s=await r.json(); const el=document.getElementById('status'); el.textContent = s.live ? ('● LIVE · '+s.model) : ('○ mock (offline) — set AGENT_LLM_* for Foundry'); el.style.color = s.live ? 'var(--accent)' : 'var(--faint)'; }catch(e){} }
+
+loadStatus(); loadLessons();
+</script>
+</body>
+</html>

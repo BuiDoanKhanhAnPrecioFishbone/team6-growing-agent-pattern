@@ -16,13 +16,14 @@ public static class Host
 {
     public static Task Run(string[] args, IAgent agent, int port, string blockKey)
     {
+        Model.Configure(); // read AGENT_LLM_* — live model if set, else the deterministic mock
         var builder = WebApplication.CreateBuilder(args);
         builder.Services.AddSingleton(HarnessOptions.FromEnvironment());
         builder.Services.AddSingleton<ILessonStore>(_ => StoreFromEnv());
         builder.Services.AddSingleton<AgentHarness>();
         var app = builder.Build();
 
-        app.MapGet("/", () => Results.Ok(new { service = agent.Id, block = blockKey, status = "up" }));
+        app.MapGet("/", () => Results.Ok(new { service = agent.Id, block = blockKey, status = "up", model = Model.Name, live = Model.Enabled }));
 
         // POST /run — body is the candidate file. Runs the fast loop for THIS agent, merges its block
         // back in, and returns the candidate plus this agent's loop telemetry under `agent`.

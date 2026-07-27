@@ -75,6 +75,12 @@ public sealed class JsonLessonStore : ILessonStore
         lock (_lock) { return Task.FromResult((IReadOnlyList<Lesson>)_lessons.Select(Clone).ToList()); }
     }
 
+    /// <summary>Wipe the memory — used by the UI's "reset" so a fresh run shows agents learning from scratch.</summary>
+    public void Clear()
+    {
+        lock (_lock) { _lessons.Clear(); Save(); }
+    }
+
     private void Save() => File.WriteAllText(_path, JsonSerializer.Serialize(_lessons, JsonOpts));
 
     private static List<Lesson> Load(string path)

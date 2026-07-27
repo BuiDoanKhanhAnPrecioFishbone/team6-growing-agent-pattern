@@ -25,6 +25,9 @@
     <Project Path="shared/AIAssistant.AgentHarness/AIAssistant.AgentHarness.csproj" />
     <Project Path="shared/AIAssistant.AgentHost/AIAssistant.AgentHost.csproj" />
   </Folder>
+  <Folder Name="/ui/">
+    <Project Path="ui/AIAssistant.Ui.csproj" />
+  </Folder>
   <Folder Name="/_template/">
     <Project Path="_template/AIAssistant.STemplate.Api.csproj" />
   </Folder>

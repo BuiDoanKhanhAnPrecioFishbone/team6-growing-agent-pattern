@@ -51,6 +51,18 @@ curl -s localhost:5301/lessons          # what this agent has learned, with hit-
 
 Ports: s1 5301 · s2 5302 · s3 5303 · s4 5304 · s5 5305 · s6 5306.
 
+### Watch the flow in a UI
+
+```bash
+dotnet run --project ui          # → http://localhost:5300
+```
+
+A control panel that runs the pipeline, shows **each agent's result** (block JSON + telemetry + gate),
+and lets you **evaluate & teach** — reject an agent's output and state the rule it must follow; your
+feedback becomes a lesson the agent applies on the next run (and the ART training corpus later). Reset
+memory and re-run to watch the whole pipeline compound. The header shows **● LIVE · &lt;model&gt;** when a
+Foundry endpoint is configured, or **○ mock (offline)** otherwise.
+
 ## The six agents
 
 | S | Agent | Human gate | Grounding gate → learnable trigger |
@@ -69,6 +81,10 @@ $env:AGENT_LLM_BASE_URL = "https://<your-resource>.openai.azure.com/openai/v1"  
 $env:AGENT_LLM_API_KEY  = "<key>"
 $env:AGENT_LLM_MODEL    = "<your-deployment-name>"
 ```
+
+These vars wire **every agent, the orchestrator and the UI** to your model — set them, then run any of
+them. With nothing set, everything runs a deterministic mock (offline). If the endpoint is unreachable or
+the key is wrong, each agent degrades to its mock draft rather than failing, so the flow never breaks.
 
 Memory backing: set `AGENT_COSMOS_CONNECTION` for Cosmos DB, otherwise a local JSON file is used.
 Full recipes + hosting on Azure Container Apps are in [`RUNNING.md`](RUNNING.md).

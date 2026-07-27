@@ -24,7 +24,7 @@ public sealed class MonitorAgent : IAgent
             }),
             ["recommendReValue"] = false,
         };
-        return Task.FromResult(block.ToJsonString(Kit.J));
+        return Model.Generate(block.ToJsonString(Kit.J), ctx, lessons, critique, Id, ct);
     }
 
     public Reward Evaluate(string draft, AgentContext ctx)

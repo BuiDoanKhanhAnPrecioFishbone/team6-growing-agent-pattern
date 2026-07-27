@@ -24,7 +24,7 @@ public sealed class FinancialsAgent : IAgent
                 : new JsonArray(),
             ["sanity_flags"] = new JsonArray(),
         };
-        return Task.FromResult(block.ToJsonString(Kit.J));
+        return Model.Generate(block.ToJsonString(Kit.J), ctx, lessons, critique, Id, ct);
     }
 
     public Reward Evaluate(string draft, AgentContext ctx)

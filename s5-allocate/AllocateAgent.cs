@@ -33,7 +33,7 @@ public sealed class AllocateAgent : IAgent
         };
         if (Kit.Corrected(lessons, critique, "MISSING_DISCLAIMER"))
             block["disclaimer"] = "Educational/illustrative; not investment advice.";
-        return Task.FromResult(block.ToJsonString(Kit.J));
+        return Model.Generate(block.ToJsonString(Kit.J), ctx, lessons, critique, Id, ct);
     }
 
     public Reward Evaluate(string draft, AgentContext ctx)

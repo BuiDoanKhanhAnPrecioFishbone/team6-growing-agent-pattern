@@ -6,6 +6,7 @@ using AIAssistant.Harness;
 // One shared lesson store across all agents (partitioned by agent id). Run twice on the same industry
 // so the WHOLE pipeline compounds: run 2 inherits run 1's lessons and stops stumbling.
 
+AIAssistant.AgentHost.Model.Configure(); // read AGENT_LLM_* — live Foundry model if set, else mock
 var storePath = Environment.GetEnvironmentVariable("FLOW_LESSON_STORE")
                 ?? Path.Combine(AppContext.BaseDirectory, "flow-lessons.json");
 if (args.Contains("--fresh") && File.Exists(storePath)) File.Delete(storePath);

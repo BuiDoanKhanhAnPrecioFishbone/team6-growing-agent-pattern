@@ -25,7 +25,7 @@ public sealed class ValuationAgent : IAgent
             ["flags"] = new JsonArray(),
             ["gate3"] = new JsonObject { ["status"] = "gate3_pending", ["card"] = "Confirm growth + discount-rate assumptions." },
         };
-        return Task.FromResult(block.ToJsonString(Kit.J));
+        return Model.Generate(block.ToJsonString(Kit.J), ctx, lessons, critique, Id, ct);
     }
 
     public Reward Evaluate(string draft, AgentContext ctx)
