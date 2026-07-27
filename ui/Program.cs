@@ -24,7 +24,119 @@ var pipeline = new (string Key, IAgent Agent, string? Gate)[]
     ("monitoring", new MonitorAgent(),    "act on alerts"),
 };
 
-// POST /api/run — run the whole flow for one company; return per-agent results + recommendation.
+// ── Stepwise, pause-at-each-gate execution (server-side run sessions) ──
+var store = app.Services.GetRequiredService<JsonLessonStore>();
+var harness = new AgentHarness(store, () => "2026-07-27");
+var opt = app.Services.GetRequiredService<HarnessOptions>();
+var sessions = new System.Collections.Concurrent.ConcurrentDictionary<string, Sess>();
+var gateNum = new Dictionary<string, int> { ["screen"] = 1, ["moat"] = 2, ["valuation"] = 3, ["allocation"] = 4 };
+var gateAgent = new Dictionary<string, string> { ["screen"] = "s1-screen", ["moat"] = "s2-moat", ["valuation"] = "s4-valuation", ["allocation"] = "s5-allocate" };
+
+async Task<JsonObject> RunOne(JsonObject candidate, int idx)
+{
+    var (key, agent, gate) = pipeline[idx];
+    var ctx = new AgentContext
+    {
+        Ticker = candidate["ticker"]!.GetValue<string>(),
+        Features = new AgentFeatures(candidate["industry"]!.GetValue<string>(), Array.Empty<string>()),
+        Input = candidate,
+        AllowedSources = ((JsonArray)candidate["sources"]!).Select(s => s!.GetValue<string>()).ToList(),
+    };
+    var o = await harness.RunAsync(agent, ctx, opt, default);
+    if (o.Best.Pass && o.BestDraft is not null) candidate[key] = JsonNode.Parse(o.BestDraft);
+    return new JsonObject
+    {
+        ["id"] = agent.Id, ["key"] = key, ["gate"] = gate, ["pass"] = o.Best.Pass,
+        ["iterations"] = o.Iterations, ["firstScore"] = o.FirstScore, ["score"] = o.Best.Score,
+        ["injected"] = new JsonArray(o.InjectedLessons.Select(x => (JsonNode?)x.Split('|').Last()).ToArray()),
+        ["learned"] = new JsonArray(o.LearnedLessons.Select(x => (JsonNode?)x.Split('|').Last()).ToArray()),
+        ["critique"] = o.Best.Critique,
+        ["block"] = candidate[key]?.DeepClone(),
+    };
+}
+void ApplyGate(JsonObject c, string key)
+{
+    switch (key)
+    {
+        case "moat": c["moat"]!["humanConfirmed"] = true; break;
+        case "valuation": c["valuation"]!["gate3"]!["status"] = "confirmed"; break;
+        case "allocation": c["allocation"]!["humanConfirmed"] = true; break;
+    }
+}
+JsonObject? Reco(JsonObject c)
+{
+    if (c["allocation"] is not JsonObject a) return null;
+    var v = c["valuation"] as JsonObject; var f = c["financials"] as JsonObject; var mo = c["moat"] as JsonObject; var m = c["monitoring"] as JsonObject;
+    double mid = v?["intrinsic_value_range"] is JsonObject r ? (r["low"]!.GetValue<double>() + r["high"]!.GetValue<double>()) / 2 : 0;
+    return new JsonObject
+    {
+        ["ticker"] = c["ticker"]!.GetValue<string>(), ["name"] = c["name"]!.GetValue<string>(),
+        ["grade"] = (f?["health_verdict"] as JsonObject)?["grade"]?.GetValue<string>(),
+        ["moatStrength"] = mo?["moatStrength"]?.GetValue<string>(), ["moatTrend"] = mo?["moatTrend"]?.GetValue<string>(),
+        ["intrinsic"] = mid, ["price"] = (v?["price"] as JsonObject)?["value"]?.GetValue<double>() ?? 0,
+        ["mos"] = (v?["margin_of_safety"] as JsonObject)?["vs_mid"]?.GetValue<double>() ?? 0,
+        ["decision"] = a["decision"]?.GetValue<string>(), ["size"] = a["positionSizePct"]?.GetValue<double>() ?? 0,
+        ["entry"] = a["entryTarget"]?.GetValue<double>(),
+        ["thesisStatus"] = m?["thesisStatus"]?.GetValue<string>(), ["alerts"] = (m?["alerts"] as JsonArray)?.Count ?? 0,
+    };
+}
+
+app.MapPost("/api/run/start", (RunRequest req) =>
+{
+    var id = Guid.NewGuid().ToString("N")[..8];
+    var c = Seed(req);
+    sessions[id] = new Sess { Candidate = c };
+    return Results.Json(new { runId = id, ticker = c["ticker"]!.GetValue<string>(), name = c["name"]!.GetValue<string>(), model = AIAssistant.AgentHost.Model.Name, live = AIAssistant.AgentHost.Model.Enabled, steps = pipeline.Length });
+});
+
+// Run the NEXT agent. If it has a numbered gate, the run PAUSES (PendingGate) until /api/run/gate resolves it.
+app.MapPost("/api/run/step", async (StepRequest r) =>
+{
+    if (r.RunId is null || !sessions.TryGetValue(r.RunId, out var s)) return Results.NotFound(new { error = "unknown runId — start a run first" });
+    if (s.PendingGate >= 0) return Results.Json(new { error = "resolve the pending gate first" }, statusCode: 409);
+    if (s.Ran >= pipeline.Length) return Results.Json(new JsonObject { ["done"] = true, ["total"] = s.Total, ["recommendation"] = Reco(s.Candidate) });
+
+    var idx = s.Ran;
+    var stage = await RunOne(s.Candidate, idx);
+    s.Total += stage["iterations"]!.GetValue<int>();
+    s.Ran++;
+    var key = pipeline[idx].Key;
+    var pass = stage["pass"]!.GetValue<bool>();
+    var blocking = pass && gateNum.ContainsKey(key);
+    if (blocking) s.PendingGate = idx;
+    var done = s.Ran >= pipeline.Length && s.PendingGate < 0;
+    return Results.Json(new JsonObject
+    {
+        ["stage"] = stage,
+        ["gate"] = blocking ? new JsonObject { ["n"] = gateNum[key], ["label"] = pipeline[idx].Gate, ["key"] = key, ["agent"] = gateAgent[key] } : null,
+        ["failed"] = !pass,
+        ["ran"] = s.Ran, ["total"] = s.Total, ["done"] = done,
+        ["recommendation"] = done ? Reco(s.Candidate) : null,
+    });
+});
+
+// Resolve the pending gate. confirm → apply the human decision and proceed. reject → teach a lesson and
+// re-run THIS agent so you watch it improve; the gate stays pending until you confirm.
+app.MapPost("/api/run/gate", async (GateRequest g) =>
+{
+    if (g.RunId is null || !sessions.TryGetValue(g.RunId, out var s)) return Results.NotFound(new { error = "unknown runId" });
+    if (s.PendingGate < 0) return Results.BadRequest(new { error = "no pending gate" });
+    var idx = s.PendingGate; var key = pipeline[idx].Key;
+    if (g.Decision == "confirm") { ApplyGate(s.Candidate, key); s.PendingGate = -1; return Results.Json(new { ok = true, resolved = true }); }
+
+    if (!string.IsNullOrWhiteSpace(g.Trigger) && !string.IsNullOrWhiteSpace(g.Warning))
+        await store.WriteAsync(new Lesson
+        {
+            Id = $"{pipeline[idx].Agent.Id}|{s.Candidate["industry"]!.GetValue<string>()}|{g.Trigger}",
+            Agent = pipeline[idx].Agent.Id, Sector = s.Candidate["industry"]!.GetValue<string>(),
+            Trigger = g.Trigger!, Warning = g.Warning!, LearnedFrom = "human", Date = "2026-07-27",
+        });
+    var stage = await RunOne(s.Candidate, idx);
+    s.Total += stage["iterations"]!.GetValue<int>();
+    return Results.Json(new JsonObject { ["ok"] = true, ["resolved"] = false, ["stage"] = stage, ["total"] = s.Total });
+});
+
+// POST /api/run — one-shot run of the whole flow (gates auto-confirmed). Kept for scripting.
 app.MapPost("/api/run", async (RunRequest req, JsonLessonStore store, HarnessOptions opt) =>
 {
     var harness = new AgentHarness(store, () => "2026-07-27");
@@ -123,3 +235,6 @@ static JsonObject Seed(RunRequest r)
 
 record RunRequest(string? Ticker, string? Name, string? Industry, string[]? Sources);
 record TeachRequest(string? Agent, string? Sector, string? Trigger, string? Warning);
+record StepRequest(string? RunId);
+record GateRequest(string? RunId, string? Decision, string? Trigger, string? Warning);
+sealed class Sess { public JsonObject Candidate = new(); public int Ran; public int PendingGate = -1; public int Total; }

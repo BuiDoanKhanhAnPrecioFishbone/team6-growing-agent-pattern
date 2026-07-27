@@ -66,6 +66,16 @@
   #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#06120d;font-family:var(--mono);font-size:.78rem;font-weight:700;padding:10px 16px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
   #toast.show{opacity:1}
   .empty{padding:26px 14px;color:var(--faint);font-family:var(--mono);font-size:.8rem;text-align:center}
+  /* human-gate nodes between agents */
+  .gatenode{padding:0 14px 12px;position:relative}
+  .gatenode::before{content:"";position:absolute;left:24px;top:-10px;height:10px;width:2px;background:var(--amber);opacity:.5}
+  .gbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--amber);background:#e0a74516;border-radius:8px;padding:9px 12px}
+  .gnum{font-family:var(--mono);font-size:.68rem;letter-spacing:.09em;color:var(--amber);font-weight:700;white-space:nowrap}
+  .glabel{font-size:.82rem;color:var(--ink)}
+  .gstate{font-family:var(--mono);font-size:.66rem;margin-left:auto;padding:2px 9px;border-radius:20px;border:1px solid var(--amber);color:var(--amber);white-space:nowrap}
+  .gstate.ok{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+  .gstate.no{border-color:var(--clay);color:var(--clay);background:#e07a5f18}
+  .gacts{display:flex;gap:6px;width:100%;margin-top:2px}
 </style>
 </head>
 <body>
@@ -117,68 +127,115 @@ const RULES = {
   "s6-monitor":    {t:"UNSOURCED_ALERT",    w:"Every monitoring alert must cite its source (e.g. a statement period)."},
 };
 const PRESET = { VNM:{name:"Vietnam Dairy Products JSC (Vinamilk)",ind:"consumer_staples"}, MSN:{name:"Masan Consumer Corporation",ind:"consumer_staples"}, FPT:{name:"FPT Corporation",ind:"technology"} };
-let sel = "VNM", lastTotal = null;
+let sel = "VNM", lastTotal = null, runId = null, items = [];
 
 function pick(b){ document.querySelectorAll('[data-co]').forEach(x=>x.classList.remove('on')); b.classList.add('on'); sel=b.dataset.co; }
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
 function esc(s){ return (s??'').toString().replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
 async function run(){
-  const btn=document.getElementById('runBtn'); btn.disabled=true; btn.textContent='running…';
   const p=PRESET[sel]||{name:sel,ind:'consumer_staples'};
+  const btn=document.getElementById('runBtn'); btn.disabled=true; btn.textContent='running…';
+  items=[]; render(); document.getElementById('reco').innerHTML='<div class="empty" style="padding:8px 0">running…</div>';
   try{
-    const r=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ticker:sel,name:p.name,industry:p.ind})});
-    const d=await r.json();
-    renderStages(d.stages); renderReco(d);
-    const c=document.getElementById('compound');
-    if(lastTotal!==null){ const diff=lastTotal-d.totalIterations; c.textContent = diff>0 ? `▚ pipeline total ${d.totalIterations} iters — ${diff} fewer than the previous run: the agents reused their lessons.` : `▚ pipeline total ${d.totalIterations} iterations`; }
-    else c.textContent=`▚ pipeline total ${d.totalIterations} iterations (first run — agents learning from scratch)`;
-    lastTotal=d.totalIterations;
-    loadLessons();
+    const r=await fetch('/api/run/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ticker:sel,name:p.name,industry:p.ind})});
+    const d=await r.json(); runId=d.runId;
+    await stepLoop();
   }catch(e){ toast('run failed'); }
   btn.disabled=false; btn.textContent='▶ Run flow';
 }
+// Walk the pipeline one agent at a time; STOP when a gate needs the human.
+async function stepLoop(){
+  while(true){
+    const r=await fetch('/api/run/step',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})});
+    const d=await r.json();
+    if(d.error){ toast(d.error); return; }
+    if(d.stage){ items.push({kind:'stage',s:d.stage}); render(); }
+    if(d.failed){ toast('an agent failed — see its critique'); return; }
+    if(d.gate){ items.push({kind:'gate',g:d.gate,state:'await'}); render(); return; }   // ⏸ pause for the human
+    if(d.done){ renderReco(d.recommendation); showCompound(d.total); loadLessons(); return; }
+  }
+}
+async function gateConfirm(){
+  const gi=[...items].reverse().find(it=>it.kind==='gate'&&it.state==='await'); if(gi){ gi.state='ok'; render(); }
+  await fetch('/api/run/gate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId,decision:'confirm'})});
+  await stepLoop();
+}
+async function gateReject(pos){
+  const trigger=document.getElementById('rt'+pos).value.trim(), warning=document.getElementById('rw'+pos).value.trim();
+  if(!trigger||!warning){ toast('enter a rule to teach'); return; }
+  const r=await fetch('/api/run/gate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId,decision:'reject',trigger,warning})});
+  const d=await r.json();
+  if(d.stage && items[pos-1] && items[pos-1].kind==='stage') items[pos-1].s=d.stage;   // show the re-run result
+  render(); loadLessons(); toast('taught — agent re-ran; confirm when satisfied');
+}
+function showCompound(total){
+  const c=document.getElementById('compound');
+  if(lastTotal!==null){ const diff=lastTotal-total; c.textContent = diff>0?`▚ pipeline total ${total} iters — ${diff} fewer than the previous run: agents reused their lessons.`:`▚ pipeline total ${total} iterations`; }
+  else c.textContent=`▚ pipeline total ${total} iterations (first run — learning from scratch)`;
+  lastTotal=total;
+}
 
-function renderStages(stages){
-  document.getElementById('stages').innerHTML = stages.map((s,i)=>{
-    const rule=RULES[s.id]||{t:'',w:''};
-    const learned=(s.learned||[]).map(x=>`<span class="tag learn">learned ${esc(x)}</span>`).join('');
-    const used=(s.injected||[]).map(x=>`<span class="tag use">used ${esc(x)}</span>`).join('');
-    const gate=s.gate?`<span class="tag gate">🧑 ${esc(s.gate)}</span>`:'';
-    return `<div class="stage">
+function stageCard(s,pos){
+  const rule=RULES[s.id]||{t:'',w:''};
+  const learned=(s.learned||[]).map(x=>`<span class="tag learn">learned ${esc(x)}</span>`).join('');
+  const used=(s.injected||[]).map(x=>`<span class="tag use">used ${esc(x)}</span>`).join('');
+  return `<div class="stage">
       <div class="top">
-        <span class="sid">S${i+1} · ${esc(s.id)}</span>
+        <span class="sid">${esc(s.id)}</span>
         <span class="pill ${s.pass?'pass':'fail'}">${s.pass?'pass':'fail'}</span>
-        ${gate}
         <span class="meta">${s.iterations} iter · ${(s.firstScore).toFixed(2)}→${(s.score).toFixed(2)}</span>
       </div>
       <div class="chips">${learned}${used}</div>
       <div class="acts">
-        <button class="chip" onclick="tog('b${i}')">result</button>
-        <button class="chip" onclick="tog('t${i}')">✎ evaluate &amp; teach</button>
+        <button class="chip" onclick="tog('b${pos}')">result</button>
+        <button class="chip" onclick="tog('t${pos}')">✎ evaluate &amp; teach</button>
       </div>
-      <pre id="b${i}" style="display:none">${esc(JSON.stringify(s.block,null,2))}</pre>
-      <div class="teach" id="t${i}">
-        <div style="font-size:.76rem;color:var(--muted)">Reject this output and teach a rule — it becomes a lesson injected on the next run.</div>
-        <label>trigger (rule id)</label><input id="tt${i}" value="${esc(rule.t)}"/>
-        <label>lesson (what the agent must do)</label><input id="tw${i}" value="${esc(rule.w)}"/>
-        <div style="margin-top:8px"><button class="primary chip" onclick="teach('${s.id}','${esc(sel)}',${i})">Teach agent</button></div>
+      <pre id="b${pos}" style="display:none">${esc(JSON.stringify(s.block,null,2))}</pre>
+      <div class="teach" id="t${pos}">
+        <div style="font-size:.76rem;color:var(--muted)">Teach a rule — it becomes a lesson injected next run.</div>
+        <label>trigger (rule id)</label><input id="tt${pos}" value="${esc(rule.t)}"/>
+        <label>lesson (what the agent must do)</label><input id="tw${pos}" value="${esc(rule.w)}"/>
+        <div style="margin-top:8px"><button class="primary chip" onclick="teach('${s.id}','${esc(sel)}',${pos})">Teach agent</button></div>
       </div>
     </div>`;
-  }).join('');
+}
+function gateNode(g,state,pos){
+  const rule=RULES[g.agent]||{t:'',w:''};
+  const cls=state==='ok'?'ok':state==='no'?'no':'';
+  const txt=state==='ok'?'✓ confirmed':state==='no'?'✗ rejected':'⏸ awaiting your decision';
+  const acts = state==='await' ? `
+      <div class="gacts">
+        <button class="primary chip" onclick="gateConfirm()">✓ Confirm &amp; continue</button>
+        <button class="chip" onclick="tog('rj${pos}')">✗ Reject &amp; teach</button>
+      </div>
+      <div class="teach" id="rj${pos}">
+        <div style="font-size:.76rem;color:var(--muted)">Reject: tell the agent the rule it broke — it re-runs with your lesson, then confirm.</div>
+        <label>trigger (rule id)</label><input id="rt${pos}" value="${esc(rule.t)}"/>
+        <label>lesson</label><input id="rw${pos}" value="${esc(rule.w)}"/>
+        <div style="margin-top:8px"><button class="primary chip" onclick="gateReject(${pos})">Teach &amp; re-run</button></div>
+      </div>` : '';
+  return `<div class="gatenode"><div class="gbox">
+      <span class="gnum">🧑 HUMAN GATE #${g.n}</span>
+      <span class="glabel">${esc(g.label)}</span>
+      <span class="gstate ${cls}">${txt}</span>${acts}
+    </div></div>`;
+}
+function render(){
+  document.getElementById('stages').innerHTML = items.length
+    ? items.map((it,pos)=> it.kind==='stage'?stageCard(it.s,pos):gateNode(it.g,it.state,pos)).join('')
+    : '<div class="empty">Click “Run flow” to start.</div>';
 }
 
-function renderReco(d){
-  const c=d.candidate||{}; const f=c.financials||{}, mo=c.moat||{}, v=c.valuation||{}, a=c.allocation||{}, m=c.monitoring||{};
-  if(!a.decision){ document.getElementById('reco').innerHTML='<div class="empty" style="padding:8px 0">flow did not complete</div>'; return; }
-  const mid=v.intrinsic_value_range?((v.intrinsic_value_range.low+v.intrinsic_value_range.high)/2):0;
-  const mos=v.margin_of_safety?v.margin_of_safety.vs_mid:0;
-  document.getElementById('reco').innerHTML=`
-    <div class="big">${(a.decision||'').toUpperCase()} · ${(a.positionSizePct*100).toFixed(1)}%</div>
-    <div class="line">${esc(d.ticker)} — ${esc(d.name)}</div>
-    <div class="line">health ${esc((f.health_verdict||{}).grade)} · moat ${esc(mo.moatStrength)}/${esc(mo.moatTrend)}</div>
-    <div class="line">intrinsic ≈ ${mid.toLocaleString()} vs price ${(v.price||{}).value?.toLocaleString()} · MoS ${(mos*100).toFixed(0)}%</div>
-    <div class="line">entry ≤ ${a.entryTarget?.toLocaleString()??'—'} · monitor: ${esc((m).thesisStatus)}, ${(m.alerts||[]).length} alert(s)</div>`;
+function renderReco(a){
+  const el=document.getElementById('reco');
+  if(!a || !a.decision){ el.innerHTML='<div class="empty" style="padding:8px 0">—</div>'; return; }
+  el.innerHTML=`
+    <div class="big">${(a.decision||'').toUpperCase()} · ${(a.size*100).toFixed(1)}%</div>
+    <div class="line">${esc(a.ticker)} — ${esc(a.name)}</div>
+    <div class="line">health ${esc(a.grade)} · moat ${esc(a.moatStrength)}/${esc(a.moatTrend)}</div>
+    <div class="line">intrinsic ≈ ${Math.round(a.intrinsic).toLocaleString()} vs price ${Math.round(a.price).toLocaleString()} · MoS ${(a.mos*100).toFixed(0)}%</div>
+    <div class="line">entry ≤ ${a.entry?Math.round(a.entry).toLocaleString():'—'} · monitor: ${esc(a.thesisStatus)}, ${a.alerts} alert(s)</div>`;
 }
 
 async function teach(agent,sector,i){
