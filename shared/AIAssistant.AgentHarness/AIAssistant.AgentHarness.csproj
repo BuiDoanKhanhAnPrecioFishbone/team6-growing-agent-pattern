@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AIAssistant.Harness</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    THE GROWING-AGENT PATTERN, as code. Every S-agent references this library and implements IAgent
+    (three methods). The fast loop, the reward contract, and the lesson memory live here ONCE and are
+    never re-implemented per agent. See PATTERN.md at the repo root of agents/.
+  -->
+
+</Project>

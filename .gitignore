@@ -1,0 +1,21 @@
+# .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Agent runtime state — never commit learned lessons or local config
+lessons.json
+*.lessons.json
+appsettings.*.local.json
+secrets.json
+
+# OS
+.DS_Store
+Thumbs.db

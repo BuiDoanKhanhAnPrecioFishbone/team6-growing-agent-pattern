@@ -1,0 +1,344 @@
+<style>
+  :root {
+    --bg:#eef1ef; --surface:#f9fbf9; --surface-2:#e6eae7; --ink:#10171a; --muted:#566169;
+    --faint:#7d8891; --hair:#d3d9d5; --hair-2:#c3cbc5; --accent:#0f9d74; --accent-2:#12b485;
+    --accent-dim:#0f9d7422; --amber:#b9791d; --amber-bg:#b9791d1c; --clay:#c2543a; --clay-bg:#c2543a1a;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --maxw: 1080px; --sect-gap: clamp(3rem, 7vw, 4.75rem);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0a0e11; --surface:#10161a; --surface-2:#161d22; --ink:#e7ece9; --muted:#8b979f;
+      --faint:#66727a; --hair:#212a30; --hair-2:#2b353b; --accent:#2dcf9c; --accent-2:#3fe0ad;
+      --accent-dim:#2dcf9c1f; --amber:#e0a745; --amber-bg:#e0a74518; --clay:#e07a5f; --clay-bg:#e07a5f18;
+    }
+  }
+  :root[data-theme="light"]{--bg:#eef1ef;--surface:#f9fbf9;--surface-2:#e6eae7;--ink:#10171a;--muted:#566169;--faint:#7d8891;--hair:#d3d9d5;--hair-2:#c3cbc5;--accent:#0f9d74;--accent-2:#12b485;--accent-dim:#0f9d7422;--amber:#b9791d;--amber-bg:#b9791d1c;--clay:#c2543a;--clay-bg:#c2543a1a;}
+  :root[data-theme="dark"]{--bg:#0a0e11;--surface:#10161a;--surface-2:#161d22;--ink:#e7ece9;--muted:#8b979f;--faint:#66727a;--hair:#212a30;--hair-2:#2b353b;--accent:#2dcf9c;--accent-2:#3fe0ad;--accent-dim:#2dcf9c1f;--amber:#e0a745;--amber-bg:#e0a74518;--clay:#e07a5f;--clay-bg:#e07a5f18;}
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .page { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.62;
+    -webkit-font-smoothing: antialiased; font-size: 16px; padding: 0 clamp(1rem, 4vw, 2.5rem) 4rem; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; }
+
+  .statusbar { display:flex; align-items:center; gap:.9rem; font-family:var(--mono); font-size:.72rem;
+    letter-spacing:.04em; color:var(--faint); border-bottom:1px solid var(--hair); padding:.85rem .2rem; text-transform:uppercase; }
+  .statusbar .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
+  .statusbar .sep { color:var(--hair-2); }
+  .statusbar .right { margin-left:auto; }
+  .cursor { display:inline-block; width:.55ch; height:1em; background:var(--accent); vertical-align:-.12em; animation:blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  .hero { padding: clamp(2.5rem,7vw,4rem) 0 clamp(1rem,3vw,1.75rem); }
+  .eyebrow { font-family:var(--mono); font-size:.74rem; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin-bottom:1.3rem; }
+  h1 { font-family:var(--mono); font-weight:600; font-size:clamp(2rem,6vw,3.4rem); line-height:1.03; letter-spacing:-.025em; margin:0; text-wrap:balance; }
+  h1 .g { color:var(--accent); }
+  .lede { margin:1.5rem 0 0; max-width:62ch; font-size:clamp(1rem,2vw,1.2rem); color:var(--muted); }
+
+  section.block { padding-top: var(--sect-gap); }
+  .sect-head { border-top:1px solid var(--hair); padding-top:1.4rem; margin-bottom:1.8rem; }
+  .sect-marker { font-family:var(--mono); font-size:.74rem; letter-spacing:.16em; color:var(--faint); text-transform:uppercase; }
+  .sect-marker b { color:var(--accent); }
+  h2 { font-family:var(--mono); font-weight:600; font-size:clamp(1.3rem,3vw,1.85rem); letter-spacing:-.01em; margin:.5rem 0 0; text-wrap:balance; }
+  .sect-sub { margin:.7rem 0 0; color:var(--muted); max-width:68ch; }
+  h3.mini { font-family:var(--mono); font-size:1rem; margin:1.8rem 0 .8rem; letter-spacing:-.01em; }
+
+  .triad { display:grid; grid-template-columns:repeat(3,1fr); gap:.9rem; }
+  .tri { border:1px solid var(--hair); border-radius:6px; padding:1.15rem; background:var(--surface); }
+  .tri .n { font-family:var(--mono); font-size:.78rem; color:var(--accent); }
+  .tri p { margin:.5rem 0 0; font-size:.92rem; }
+  .tri b { color:var(--ink); }
+
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:.8rem; }
+  .card { border:1px solid var(--hair); border-radius:6px; padding:1.1rem; background:var(--surface); }
+  .card .t { font-family:var(--mono); font-weight:600; font-size:.9rem; color:var(--accent); margin-bottom:.4rem; }
+  .card .s { font-size:.87rem; color:var(--muted); line-height:1.5; }
+  .card .s b { color:var(--ink); font-weight:600; }
+
+  .callout { border:1px solid var(--hair); border-left:3px solid var(--accent); border-radius:6px;
+    background:linear-gradient(100deg,var(--accent-dim),transparent 60%); padding:1.1rem 1.3rem; margin-top:1.5rem; }
+  .callout .k { font-family:var(--mono); font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+  .callout p { margin:.45rem 0 0; font-size:.95rem; }
+  .callout.amber { border-left-color:var(--amber); background:linear-gradient(100deg,var(--amber-bg),transparent 60%); }
+  .callout.amber .k { color:var(--amber); }
+
+  .tablewrap { overflow-x:auto; margin-top:1.4rem; border:1px solid var(--hair); border-radius:6px; }
+  table { border-collapse:collapse; width:100%; min-width:640px; font-size:.86rem; }
+  thead th { text-align:left; font-family:var(--mono); font-size:.68rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--faint); padding:.8rem 1rem; border-bottom:1px solid var(--hair-2); background:var(--surface-2); font-weight:600; }
+  tbody td, tbody th { padding:.8rem 1rem; border-bottom:1px solid var(--hair); vertical-align:top; text-align:left; }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom:0; }
+  tbody th { font-weight:600; font-family:var(--mono); font-size:.76rem; color:var(--ink); white-space:nowrap; }
+  td .yes { color:var(--accent); font-weight:600; }
+  td .no { color:var(--clay); font-weight:600; }
+  .col-accent { background:var(--accent-dim); }
+  .col-mut { color:var(--muted); }
+  td code, th code { font-family:var(--mono); font-size:.82em; background:var(--surface-2); padding:.05rem .3rem; border-radius:3px; }
+
+  .code { border:1px solid var(--hair); border-radius:6px; background:var(--surface); overflow:hidden; margin-top:1.3rem; }
+  .code-head { display:flex; align-items:center; gap:.6rem; padding:.55rem .9rem; border-bottom:1px solid var(--hair);
+    font-family:var(--mono); font-size:.7rem; letter-spacing:.06em; color:var(--faint); text-transform:uppercase; background:var(--surface-2); }
+  .code-head .fdot { width:8px; height:8px; border-radius:50%; background:var(--hair-2); }
+  .code-head .tag { margin-left:auto; color:var(--accent); }
+  pre { margin:0; overflow-x:auto; }
+  pre code { display:block; padding:1rem 1.1rem; font-family:var(--mono); font-size:.82rem; line-height:1.65; color:var(--ink); }
+  .c-key { color:var(--accent); } .c-com { color:var(--faint); font-style:italic; } .c-str { color:var(--amber); }
+
+  .steps { list-style:none; margin:1.3rem 0 0; padding:0; display:grid; gap:.6rem; }
+  .steps li { display:grid; grid-template-columns:auto 1fr; gap:.85rem; align-items:start;
+    border:1px solid var(--hair); border-radius:6px; padding:.85rem 1rem; background:var(--surface); }
+  .steps .b { font-family:var(--mono); font-size:.78rem; color:var(--accent); font-weight:600; padding-top:.05rem; }
+  .steps .txt { font-size:.9rem; }
+  .steps .txt b { color:var(--ink); }
+  .rules { list-style:none; margin:1.3rem 0 0; padding:0; display:grid; gap:.55rem; }
+  .rules li { position:relative; padding-left:1.4rem; font-size:.9rem; color:var(--muted); }
+  .rules li::before { content:"▸"; position:absolute; left:0; color:var(--accent); font-family:var(--mono); }
+  .rules li b { color:var(--ink); }
+
+  .proof { border:1px solid var(--hair); border-radius:6px; background:var(--surface); overflow:hidden; margin-top:1.3rem; }
+  .proof .row { display:grid; grid-template-columns:auto 1fr; gap:1rem; padding:1rem 1.2rem; font-family:var(--mono); font-size:.84rem; align-items:baseline; }
+  .proof .row + .row { border-top:1px solid var(--hair); }
+  .proof .tk { color:var(--accent); font-weight:600; }
+  .proof .desc { color:var(--muted); }
+  .proof .desc b { color:var(--ink); font-weight:600; }
+  .proof-foot { border-top:1px solid var(--hair); background:var(--surface-2); padding:.8rem 1.2rem; font-family:var(--mono); font-size:.76rem; color:var(--muted); }
+  .proof-foot b { color:var(--accent); }
+
+  .foot { margin-top:var(--sect-gap); border-top:1px solid var(--hair); padding-top:1.4rem; display:flex; flex-wrap:wrap;
+    gap:.6rem 1.2rem; align-items:center; font-family:var(--mono); font-size:.74rem; color:var(--faint); }
+  .foot .k { color:var(--accent); } .foot .right { margin-left:auto; }
+
+  @media (max-width:720px){ .triad { grid-template-columns:1fr; } }
+  @media (prefers-reduced-motion: reduce){ .cursor { animation:none; } }
+</style>
+
+<div class="page">
+  <div class="wrap">
+
+    <div class="statusbar">
+      <span class="dot"></span><span>team6@omnia-pf</span><span class="sep">·</span><span>growing-agent.pattern</span>
+      <span class="right">TEAM PLAYBOOK · BUILD EVERY S THE SAME WAY</span>
+    </div>
+
+    <header class="hero">
+      <div class="eyebrow">Pattern spec — follow this to build S1 · S3 · S4 · S5 · S6</div>
+      <h1>The Growing-<span class="g">Agent</span> Pattern<span class="cursor" aria-hidden="true"></span></h1>
+      <p class="lede">Every S-agent is built the same way — so each one gets <b style="color:var(--ink)">better run to run</b>, on an Azure-Foundry-only, cost-optimized budget, with <b style="color:var(--ink)">no GPU</b>. This page is the why and the how. S2 (Moat) is the reference implementation.</p>
+    </header>
+
+    <!-- §1 idea -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§1</b> — The idea</div><h2>Three lines everyone must hold</h2></div>
+      <div class="triad">
+        <div class="tri"><div class="n">01</div><p>An agent is a <b>policy</b> grown inside a deterministic <b>environment</b> — not a prompt you call once.</p></div>
+        <div class="tri"><div class="n">02</div><p><b>One reward</b> gates the agent now (the loop) and could train it later (ART) — the same function.</p></div>
+        <div class="tri"><div class="n">03</div><p>Every run writes a <b>lesson</b> to memory; the next run retrieves it. Skill <b>compounds</b>.</p></div>
+      </div>
+      <div class="callout"><div class="k">The claim</div>
+        <p>Investing is too large to one-shot. So we give the agent an environment it can't fabricate, a memory that remembers, and a reward — and let it grow. The growth is <b>engineered</b>, not hoped for.</p></div>
+    </section>
+
+    <!-- §2 why good -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§2</b> — Rationale</div><h2>Why this pattern is good</h2>
+        <p class="sect-sub">Each property below is a deliberate engineering choice — and the reason judges and teammates should trust the output.</p></div>
+      <div class="cards">
+        <div class="card"><div class="t">Grounded by construction</div><div class="s">A hard gate rejects any fact not in the environment. The agent <b>cannot hallucinate a number or invent a source</b> — grounding is enforced.</div></div>
+        <div class="card"><div class="t">The reward is deterministic</div><div class="s">Same draft → same score, forever. <b>Unhackable and reproducible</b> — and safe to reuse as an RL reward later. No LLM-judge randomness inside it.</div></div>
+        <div class="card"><div class="t">It compounds — cheaply</div><div class="s">Each run's mistake becomes a lesson the next run avoids. <b>Fewer iterations = lower token cost.</b> Quality ↑ while cost ↓, no GPU.</div></div>
+        <div class="card"><div class="t">One reward, two uses</div><div class="s">The exact object that gates the loop <b>is</b> the future training signal. No wasted work, no divergence.</div></div>
+        <div class="card"><div class="t">Uniform contract → parallelism</div><div class="s">Six agents, one shape (three methods). Build S1–S6 <b>in parallel</b>, each testable, none blocking the others.</div></div>
+        <div class="card"><div class="t">Human-in-the-loop is structural</div><div class="s">Judgment fields stay <b>drafts</b> until a person confirms at a gate. Capital decisions never auto-fire.</div></div>
+        <div class="card"><div class="t">Honest about signal</div><div class="s">We separate <b>process quality</b> (now) from <b>did-the-thesis-play-out</b> (later) — and never confuse them.</div></div>
+        <div class="card"><div class="t">Future-proof for ART</div><div class="s">The lessons + high-score traces the memory accumulates <b>are</b> the training set. ART slots in with zero rework.</div></div>
+      </div>
+    </section>
+
+    <!-- §3 Foundry vs ART -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§3</b> — The constraint the team must understand</div><h2>Why a Foundry-hosted model can't run ART</h2>
+        <p class="sect-sub">ART (OpenPipe's Agent Reinforcement Trainer) makes a model better by <b>changing its weights</b> with reinforcement learning (GRPO). Our contest gives us a <b>hosted inference endpoint</b> on Azure AI Foundry. Those two are fundamentally incompatible.</p></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>What ART requires</th><th>What a hosted Foundry model gives you</th></tr></thead>
+        <tbody>
+          <tr><th>Open model weights you control</th><td class="col-mut">A <span class="no">closed</span>, inference-only endpoint — weights never exposed.</td></tr>
+          <tr><th>Gradient computation + weight updates (GRPO)</th><td class="col-mut"><span class="no">No gradient/weight access.</span> You can only send prompts. Training on it is impossible.</td></tr>
+          <tr><th>A GPU + vLLM backend you drive during rollouts</th><td class="col-mut">A <span class="no">managed API</span>, no GPU you own. ART on Azure means deploying an <em>open-weight</em> model to GPU compute yourself.</td></tr>
+          <tr><th>Sustained GPU hours for the run</th><td class="col-mut">Cheap <span class="yes">per-token</span> inference — the point of the scope. GPUs break it.</td></tr>
+          <tr><th>Contest fit</th><td class="col-accent"><span class="yes">✓ This is the given constraint</span> — a Foundry LLM, called cheaply.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout amber"><div class="k">Don't confuse these</div>
+        <p>Azure <em>does</em> offer hosted fine-tuning (and reinforcement-fine-tuning on some models). That is a <b>provider-run, model-specific, paid</b> service — not running ART's open-weight GRPO loop yourself, and not "just use a Foundry LLM cheaply." A heavier path we deliberately do not depend on.</p></div>
+      <div class="callout"><div class="k">So where does "growing" come from?</div>
+        <p>The <b>fast loop + memory</b> — learning at <b>inference time</b>, by changing the <em>context</em> we feed the model (retrieved lessons, critique-driven revision), <b>not</b> the weights. Needs none of the four things above. Runs on a plain Foundry endpoint, today.</p></div>
+    </section>
+
+    <!-- §4 two speeds -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§4</b> — The difference to internalize</div><h2>Two speeds of learning</h2>
+        <p class="sect-sub">Our pattern is the <b>fast loop</b>. ART is the <b>slow loop</b> — an optional, GPU-bound upgrade. Both optimize the exact same reward, so nothing is wasted.</p></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th></th><th>Fast loop — OUR PATTERN</th><th>Slow loop — ART (later, optional)</th></tr></thead>
+        <tbody>
+          <tr><th>What improves</th><td class="col-accent">the <b>context</b>: retrieved lessons + revision</td><td class="col-mut">the base model's <b>weights</b></td></tr>
+          <tr><th>When</th><td class="col-accent">every run, live</td><td class="col-mut">offline, in batches</td></tr>
+          <tr><th>Runs on</th><td class="col-accent">a plain Foundry inference endpoint</td><td class="col-mut">GPU compute + an open-weight model</td></tr>
+          <tr><th>Learns from</th><td class="col-accent">the reward + lessons, immediately</td><td class="col-mut">pooled high-score traces</td></tr>
+          <tr><th>Cost</th><td class="col-accent">per-token; <b>drops</b> as memory fills</td><td class="col-mut">GPU hours; one-off + redeploy</td></tr>
+          <tr><th>Extra needs</th><td class="col-accent"><span class="yes">none</span></td><td class="col-mut">GPU · open weights · training backend</td></tr>
+          <tr><th>Same reward?</th><td class="col-accent"><span class="yes">yes</span></td><td class="col-mut"><span class="yes">yes — identical function</span></td></tr>
+          <tr><th>Status</th><td class="col-accent"><span class="yes">✓ built &amp; proven now</span></td><td class="col-mut">⚙ architecture-ready, not required</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><div class="k">The message</div>
+        <p>We do <b>not</b> need ART to ship a growing agent. The fast loop already makes every S better run-to-run inside the contest's constraints. ART is a slide that says "and here's how it scales further with GPU" — not a dependency, not a demo risk.</p></div>
+    </section>
+
+    <!-- §5 anatomy -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§5</b> — Anatomy</div><h2>The harness: parts &amp; extension points</h2>
+        <p class="sect-sub">The shared library owns the machinery. Here is every part, what stays fixed, and what each agent extends. If you're editing the loop or the store <em>for your agent</em> — stop, that logic belongs in your <code>IAgent</code>.</p></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Part</th><th>Role</th><th>You extend (per agent)</th><th>Fixed (never edit)</th></tr></thead>
+        <tbody>
+          <tr><th>IAgent</th><td class="col-mut">the contract</td><td>the <b>three methods</b></td><td class="col-mut">the interface</td></tr>
+          <tr><th>AgentContext</th><td class="col-mut">run input + environment handle</td><td>your <b>environment</b> in <code>Input</code> / <code>AllowedSources</code></td><td class="col-mut">the shape</td></tr>
+          <tr><th>AgentFeatures</th><td class="col-mut">memory-scope keys</td><td>the <code>Sector</code> + <code>Tags</code> you scope by</td><td class="col-mut">—</td></tr>
+          <tr><th>Reward</th><td class="col-mut">reward shape</td><td>your <code>Breakdown</code> + <code>FailedTriggers</code></td><td class="col-mut">Pass / Score / Critique</td></tr>
+          <tr><th>Lesson</th><td class="col-mut">one episodic note</td><td>the <code>Warning</code> + <code>Trigger</code> keys</td><td class="col-mut">the Id scheme + hit-rate</td></tr>
+          <tr><th>ILessonStore</th><td class="col-mut">the memory</td><td>the <b>backing store</b> (JSON → Cosmos)</td><td class="col-mut">the three ops</td></tr>
+          <tr><th>AgentHarness</th><td class="col-mut">the fast loop</td><td>tuning; optional <b>cascade</b> / <b>best-of-N</b></td><td class="col-mut">the loop shape</td></tr>
+        </tbody>
+      </table></div>
+      <ul class="rules">
+        <li><b>Environment</b> — the biggest per-agent difference. S2 puts its <em>allowed source set</em> in <code>AllowedSources</code>; S3 will put its <em>computed calculator values</em> in <code>Input</code> and gate numbers against them. Same type, different truth inside.</li>
+        <li><b>Generation</b> — swap the mock for a live Foundry model; add a <b>model cascade</b> (small→big only on gate failure) and <b>best-of-N</b> sampling. The loop already supports both in shape.</li>
+        <li><b>Retrieval</b> — today scopes by <code>agent + sector</code> ranked by hit-rate; extend to tags or embedding similarity as memory grows. The loop doesn't change.</li>
+      </ul>
+    </section>
+
+    <!-- §6 memory / KG -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§6</b> — Memory</div><h2>The knowledge graph: how each agent stores what it learns</h2>
+        <p class="sect-sub">Two tiers, kept distinct. A <b>shared</b> domain graph (companies, financials, theses, evaluations) that every agent appends to — and a <b>per-agent</b> lesson memory that each agent owns alone.</p></div>
+
+      <div class="code">
+        <div class="code-head"><span class="fdot"></span><span>two tiers</span><span class="tag">graph</span></div>
+        <pre><code>(Company)──has──(Statement/Metric)──sourced_from──(Provenance)      <span class="c-com">┐</span>
+   └──has──(Thesis)──evaluated_by──(Evaluation)                     <span class="c-com">│ TIER 1 · SHARED domain graph</span>
+                         └──produced──(Lesson)                      <span class="c-com">┘ (the candidate file materializes it)</span>
+
+Lesson.Id = <span class="c-str">"{agent}|{sector}|{trigger}"</span>                            <span class="c-com">┐ TIER 2 · PER-AGENT lesson memory</span>
+   e.g. <span class="c-str">"s2-moat|consumer_staples|UNCITED_SOURCE"</span>                <span class="c-com">│ partition = agent · scope = sector</span>
+   fields: warning, learnedFrom, timesApplied, timesHelped, hitRate <span class="c-com">┘ key = the mistake it prevents</span></code></pre>
+      </div>
+
+      <ul class="rules">
+        <li><b>Partition = the agent</b> (<code>s2-moat</code>, <code>s3-financials</code>…). Each agent's memory is its own bucket.</li>
+        <li><b>Scope = sector.</b> Retrieval is <code>WHERE agent = me AND sector = this company's ORDER BY hitRate LIMIT k</code> — bounded, so the prompt never floods.</li>
+        <li><b>Key = trigger</b> (the mistake). Lessons upsert (keep stats) and each tracks its own hit-rate, so bad notes decay out.</li>
+      </ul>
+
+      <div class="code">
+        <div class="code-head"><span class="fdot"></span><span>ILessonStore — the whole contract (swap the backing, not the loop)</span><span class="tag">csharp</span></div>
+        <pre><code><span class="c-key">interface</span> ILessonStore
+{
+    Task&lt;IReadOnlyList&lt;Lesson&gt;&gt; RetrieveAsync(agent, features, topK);  <span class="c-com">// scoped, top-k by hitRate</span>
+    Task WriteAsync(Lesson lesson);                                    <span class="c-com">// upsert, keep stats</span>
+    Task RecordApplicationAsync(id, helped);                           <span class="c-com">// hitRate = helped / applied</span>
+    Task&lt;IReadOnlyList&lt;Lesson&gt;&gt; AllAsync();                             <span class="c-com">// GET /lessons inspector</span>
+}</code></pre>
+      </div>
+
+      <div class="tablewrap"><table>
+        <thead><tr><th>Backing</th><th>What / when</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><th>JsonLessonStore</th><td class="col-mut">one file per agent (path via env). Offline, inspectable, zero infra.</td><td><span class="yes">✓ shipped (demo)</span></td></tr>
+          <tr><th>SQLite</th><td class="col-mut">single-node, PK <code>(agent, sector, trigger)</code>.</td><td class="col-mut">optional</td></tr>
+          <tr><th>CosmosLessonStore</th><td class="col-mut">Cosmos DB, <b>partition key <code>/agent</code></b>. Each agent = one partition; scoped reads cheap; Azure-native.</td><td><span class="yes">✓ shipped (cloud)</span></td></tr>
+          <tr><th>Cosmos Gremlin / Neo4j</th><td class="col-mut"><code>Lesson-[:LEARNED_FROM]→Thesis</code>, <code>-[:APPLIED_IN]→Run</code> edges — full traversal.</td><td class="col-mut">later</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout"><div class="k">The payoff</div>
+        <p>Because <code>Retrieve / Write / RecordApplication</code> are the whole contract, <b>JSON → Cosmos is one environment variable</b> (<code>AGENT_COSMOS_CONNECTION</code>) — no agent code and no loop code changes. An agent's <em>evaluations</em> feed the shared Tier-1 graph; its <em>lessons</em> stay in its own Tier-2 partition. That's why six agents learn in parallel without colliding, yet all build one company knowledge graph.</p></div>
+    </section>
+
+    <!-- §7 contract -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§7</b> — What you implement</div><h2>The contract: three methods</h2>
+        <p class="sect-sub">The loop, memory and reward-shape come from the shared harness — you never touch them. Each agent implements only this.</p></div>
+      <div class="code">
+        <div class="code-head"><span class="fdot"></span><span>IAgent — the whole job</span><span class="tag">csharp</span></div>
+        <pre><code><span class="c-key">public interface</span> IAgent
+{
+    <span class="c-key">string</span> Id { <span class="c-key">get</span>; }                       <span class="c-com">// "sN-name" — stable; your memory partition key</span>
+    Task&lt;<span class="c-key">string</span>&gt; GenerateAsync(...);          <span class="c-com">// 1. produce a draft (Foundry model, or a mock)</span>
+    Reward Evaluate(<span class="c-key">string</span> draft, ...);         <span class="c-com">// 2. THE REWARD — gates + graded + triggers  ← the crux</span>
+    Lesson? LessonFor(<span class="c-key">string</span> trigger, ...);    <span class="c-com">// 3. a fixed mistake → a reusable, scoped lesson</span>
+}</code></pre>
+      </div>
+      <h3 class="mini">Before you code — answer the five decisions</h3>
+      <ul class="steps">
+        <li><span class="b">1</span><span class="txt"><b>Environment</b> — what can the agent NOT fabricate? (S3: the calculators · S2: the allowed sources)</span></li>
+        <li><span class="b">2</span><span class="txt"><b>Hard gates</b> — the pass/fail rules that zero the score; name each with a stable trigger key.</span></li>
+        <li><span class="b">3</span><span class="txt"><b>Graded components</b> — 3–5 quality dimensions in [0,1], weights summing to 1. Deterministic only.</span></li>
+        <li><span class="b">4</span><span class="txt"><b>Features</b> — what makes a lesson relevant later? (at minimum <code>Sector</code>)</span></li>
+        <li><span class="b">5</span><span class="txt"><b>Lessons</b> — for each fixable trigger, the scoped, conditional guidance to inject next time.</span></li>
+      </ul>
+    </section>
+
+    <!-- §8 invariants -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§8</b> — Non-negotiable</div><h2>The invariants</h2>
+        <p class="sect-sub">These keep every S consistent. Break one and the agent stops being trustworthy — or stops being trainable.</p></div>
+      <ul class="rules">
+        <li><b>Grounding by construction.</b> The agent never invents environment facts; the hard gate enforces it.</li>
+        <li><b>The reward is deterministic.</b> No randomness, no LLM-as-judge inside <code>Evaluate</code>.</li>
+        <li><b>One reward, two uses.</b> The object that gates the loop is the training signal. Never fork them.</li>
+        <li><b>Drafts stay drafts.</b> Human-judgment fields carry <code>humanConfirmed:false</code> until a gate.</li>
+        <li><b>Lessons are conditional &amp; hit-rated.</b> Scope every lesson; let the store decay the ones that stop helping.</li>
+        <li><b>Two signals kept apart.</b> Process quality (now) ≠ thesis outcome (later).</li>
+        <li><b>Cost lives in the harness.</b> Retrieval budget, stop-at-target, capped iterations, environment-does-the-math.</li>
+      </ul>
+    </section>
+
+    <!-- §9 proof -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§9</b> — It works</div><h2>What "compounding" looks like (S2)</h2>
+        <p class="sect-sub">Fresh memory, offline mock, two consumer-staples companies. Run 1 stumbles and fixes it; run 2 never stumbles.</p></div>
+      <div class="proof">
+        <div class="row"><span class="tk">RUN 1 · VNM</span><span class="desc">iterations <b>2</b> · firstScore <b>0</b> (invented a citation → gate) · best <b>1.0</b> · <b style="color:var(--accent)">LEARNED a lesson</b></span></div>
+        <div class="row"><span class="tk">RUN 2 · MSN</span><span class="desc">iterations <b>1</b> · firstScore <b>1.0</b> (lesson injected up front) · best <b>1.0</b> · lesson hitRate → <b>1.0</b></span></div>
+        <div class="proof-foot">Fewer iterations = <b>lower token cost</b>. Smarter <b>and</b> cheaper — with no weight training. That is the whole thesis, running.</div>
+      </div>
+    </section>
+
+    <!-- §10 checklist -->
+    <section class="block">
+      <div class="sect-head"><div class="sect-marker"><b>§10</b> — Ship it</div><h2>Build checklist</h2></div>
+      <div class="code">
+        <div class="code-head"><span class="fdot"></span><span>copy → fill → run</span><span class="tag">agents/</span></div>
+        <pre><code>[ ] 1. cp -r agents/_template agents/sN
+[ ] 2. Rename csproj, RootNamespace, Id ("sN-name"), and the port
+[ ] 3. Define your domain draft type + JSON options   <span class="c-com">(see s2/Domain/Moat.cs)</span>
+[ ] 4. Write the FIVE decisions as a comment at the top of your agent
+[ ] 5. Implement Evaluate   <span class="c-com">← the reward. spend your time here</span>
+[ ] 6. Implement GenerateAsync   <span class="c-com">(Foundry via ChatClient; keep a mock for offline)</span>
+[ ] 7. Implement LessonFor   <span class="c-com">(one scoped warning per fixable trigger)</span>
+[ ] 8. dotnet run  →  POST /run twice  →  GET /lessons   <span class="c-com">// watch it learn</span></code></pre>
+      </div>
+      <div class="callout"><div class="k">Definition of done</div>
+        <p>Gates bite · output is grounded · it compounds (run 2 &lt; run 1 iterations, hitRate climbs) · it degrades safely with no endpoint. Reference: <b>agents/s2</b>. Start here: <b>agents/_template</b>.</p></div>
+    </section>
+
+    <footer class="foot">
+      <span><span class="k">policy in an environment</span> · one reward · a memory that remembers</span>
+      <span class="right">team6 — growing-agent pattern v2</span>
+    </footer>
+
+  </div>
+</div>

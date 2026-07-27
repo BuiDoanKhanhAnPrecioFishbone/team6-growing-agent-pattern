@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AIAssistant.STemplate.Api</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    COPY ME to build a new growing agent (S1, S3, S4, S5, S6).
+    1. Copy this folder to agents/sN.  2. Rename the csproj + port.
+    3. Implement the three TODOs in TemplateAgent.cs.  4. dotnet run. Done.
+    The loop, memory and reward-contract come from the shared harness — you never touch them.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\shared\AIAssistant.AgentHarness\AIAssistant.AgentHarness.csproj" />
+  </ItemGroup>
+
+</Project>

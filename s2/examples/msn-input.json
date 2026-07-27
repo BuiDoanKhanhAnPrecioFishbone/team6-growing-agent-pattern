@@ -1,0 +1,16 @@
+{
+  "ticker": "MSN",
+  "name": "Masan Consumer Corporation",
+  "exchange": "HOSE",
+  "sector": "consumer_staples",
+  "screen": {
+    "passed": true,
+    "rank": 2,
+    "metrics": { "roe5y": [0.24, 0.22, 0.25, 0.23, 0.21], "deToEquity": 0.41, "fcfPositiveYears": 5 }
+  },
+  "sources": [
+    { "id": "AR2024", "title": "MSN Annual Report 2024 p.15" },
+    { "id": "AR2024-brands", "title": "MSN Annual Report 2024 p.33" },
+    { "id": "vnstock", "title": "vnstock:ratios 2020-2024" }
+  ]
+}

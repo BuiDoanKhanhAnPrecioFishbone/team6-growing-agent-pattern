@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AIAssistant.Harness.Cosmos</RootNamespace>
+  </PropertyGroup>
+
+  <!-- The Azure-native backing for ILessonStore. Referenced only by agents deployed to the cloud;
+       the core harness stays dependency-free so offline/demo agents pull no Cosmos SDK. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\AIAssistant.AgentHarness\AIAssistant.AgentHarness.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.46.0" />
+    <!-- Cosmos SDK v3 requires Newtonsoft.Json to be referenced explicitly. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
