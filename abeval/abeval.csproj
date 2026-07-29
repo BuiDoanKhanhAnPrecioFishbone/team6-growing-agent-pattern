@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <!-- A/B eval harness for Memory v2 (not part of the solution). -->
+  <ItemGroup>
+    <ProjectReference Include="..\shared\AIAssistant.AgentHarness\AIAssistant.AgentHarness.csproj" />
+  </ItemGroup>
+</Project>

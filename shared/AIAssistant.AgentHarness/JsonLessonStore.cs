@@ -100,5 +100,6 @@ public sealed class JsonLessonStore : ILessonStore
         Id = l.Id, Agent = l.Agent, Sector = l.Sector, Trigger = l.Trigger, Warning = l.Warning,
         LearnedFrom = l.LearnedFrom, Date = l.Date,
         TimesApplied = l.TimesApplied, TimesHelped = l.TimesHelped, HitRate = l.HitRate,
+        Type = l.Type, Condition = l.Condition, Embedding = l.Embedding, Trust = l.Trust, LastUsed = l.LastUsed,
     };
 }

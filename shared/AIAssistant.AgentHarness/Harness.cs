@@ -13,8 +13,9 @@ namespace AIAssistant.Harness;
 // S3/S4 adopt the same contract. Nothing here knows what a "moat" is.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// <summary>Scoping keys for episodic memory. Lessons are retrieved by these — never the whole store.</summary>
-public sealed record AgentFeatures(string Sector, IReadOnlyList<string> Tags);
+/// <summary>Scoping keys for episodic memory. <see cref="Situation"/> (v2) is a short text of the current
+/// case that semantic retrieval recalls against; empty falls back to hit-rate ordering.</summary>
+public sealed record AgentFeatures(string Sector, IReadOnlyList<string> Tags, string Situation = "");
 
 /// <summary>
 /// The reward — one function, triple duty: hard <see cref="Pass"/> gates, a graded <see cref="Score"/>,
@@ -28,9 +29,16 @@ public sealed record Reward(
     IReadOnlySet<string> FailedTriggers,
     string Critique);
 
+/// <summary>What a lesson is about — drives recall relevance and pruning policy (Memory v2).</summary>
+public enum LessonType { GroundingRule, ToolTip, DomainFact, Strategy }
+
+/// <summary>Whether a learned lesson may be injected. Provisional must earn hit-rate or a human gate before
+/// it becomes Verified; Quarantined failed injection-validation and is never injected. (Memory v2.)</summary>
+public enum Trust { Provisional, Verified, Quarantined }
+
 /// <summary>
 /// An episodic lesson: "in {Sector}, guard against {Trigger}." Carries the CONDITION it applies under
-/// and its own <see cref="HitRate"/> so the graph self-corrects — a lesson that stops helping decays out
+/// and its own <see cref="HitRate"/> so the memory self-corrects — a lesson that stops helping decays out
 /// of retrieval instead of being blindly re-applied.
 /// </summary>
 public sealed class Lesson
@@ -39,12 +47,19 @@ public sealed class Lesson
     public string Agent { get; set; } = "";
     public string Sector { get; set; } = "";
     public string Trigger { get; set; } = "";
-    public string Warning { get; set; } = "";     // the guidance injected into the next generation
-    public string LearnedFrom { get; set; } = ""; // ticker of the run that earned it
+    public string Warning { get; set; } = "";     // the guidance injected into the next generation (phase-2 text)
+    public string LearnedFrom { get; set; } = ""; // ticker/run that earned it — provenance
     public string Date { get; set; } = "";
     public int TimesApplied { get; set; }
     public int TimesHelped { get; set; }
     public double HitRate { get; set; }
+
+    // ── Memory v2 ──
+    public LessonType Type { get; set; } = LessonType.GroundingRule;
+    public string Condition { get; set; } = "";                 // when it applies — short & embeddable
+    public float[] Embedding { get; set; } = Array.Empty<float>(); // vector of (Condition + summary)
+    public Trust Trust { get; set; } = Trust.Verified;          // D1-2 skeleton default; D5 = Provisional + promotion
+    public string LastUsed { get; set; } = "";                  // for staleness
 }
 
 /// <summary>Everything an agent needs for one run. The Input is the candidate-file fragment (passthrough).</summary>

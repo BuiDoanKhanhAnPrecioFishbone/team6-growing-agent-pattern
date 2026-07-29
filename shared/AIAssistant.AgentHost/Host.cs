@@ -33,7 +33,8 @@ public static class Host
             var ctx = new AgentContext
             {
                 Ticker = candidate["ticker"]?.GetValue<string>() ?? "UNKNOWN",
-                Features = new AgentFeatures(candidate["industry"]?.GetValue<string>() ?? "general", Array.Empty<string>()),
+                Features = new AgentFeatures(candidate["industry"]?.GetValue<string>() ?? "general", Array.Empty<string>(),
+                    Situation: $"{agent.Id} step for {candidate["ticker"]?.GetValue<string>()}, a {candidate["industry"]?.GetValue<string>()} company"),
                 Input = candidate,
                 AllowedSources = (candidate["sources"] as JsonArray ?? new JsonArray())
                     .Select(s => s?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList(),
@@ -68,8 +69,10 @@ public static class Host
             return new CosmosLessonStore(conn,
                 Environment.GetEnvironmentVariable("AGENT_COSMOS_DB") ?? "team6",
                 Environment.GetEnvironmentVariable("AGENT_COSMOS_CONTAINER") ?? "lessons");
-        return new JsonLessonStore(Environment.GetEnvironmentVariable("AGENT_LESSON_STORE")
-                                   ?? Path.Combine(AppContext.BaseDirectory, "lessons.json"));
+        // Memory v2: semantic retrieval (embeddings + LLM recall) behind the same ILessonStore seam;
+        // empty situation → v1 hit-rate ordering, so it stays drop-in.
+        return new SemanticLessonStore(Environment.GetEnvironmentVariable("AGENT_LESSON_STORE")
+                                       ?? Path.Combine(AppContext.BaseDirectory, "lessons.json"));
     }
 
     private static async Task<JsonObject> ReadObject(HttpRequest request)

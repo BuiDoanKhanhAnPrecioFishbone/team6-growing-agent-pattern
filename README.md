@@ -99,6 +99,19 @@ dotnet run --project sN
 
 See `PATTERN.md §7–§10` for the contract, the five design decisions, and the checklist.
 
+## Memory v2 — semantic, self-refining lessons (in progress)
+
+The lesson memory is being upgraded from exact-match to **semantic retrieval with LLM recall** plus
+self-refinement — behind the same `ILessonStore` seam, so agents don't change. Plan &amp; schedule:
+[`PLAN-memory-v2.md`](PLAN-memory-v2.md).
+
+- **`SemanticLessonStore`** — embed the situation → vector shortlist → a cheap LLM picks the *applicable*
+  lessons → two-phase load. Set `AGENT_EMBED_*` for Azure embeddings; offline it uses a hash embedder.
+- **Measured A/B** (`abeval/`): as memory fills with noise, exact-match retrieval collapses toward 0 while
+  semantic + recall holds 0.67–1.0. `memtest/` is a small recall verifier. Run: `dotnet run --project abeval`.
+- Done: model + embeddings + store (D1–2), LLM recall + two-phase (D3–4), the A/B chart (D6–7).
+  Next: write-time refine + injection defense (D5), tool loop + MCP (D8–10).
+
 ---
 *Requires .NET 8 SDK. The agents run offline with deterministic mock models; supply `AGENT_LLM_*` to use
 a real model. No secrets are stored in this repo.*

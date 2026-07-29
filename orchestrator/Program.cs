@@ -11,7 +11,7 @@ var storePath = Environment.GetEnvironmentVariable("FLOW_LESSON_STORE")
                 ?? Path.Combine(AppContext.BaseDirectory, "flow-lessons.json");
 if (args.Contains("--fresh") && File.Exists(storePath)) File.Delete(storePath);
 
-var store = new JsonLessonStore(storePath);
+var store = new SemanticLessonStore(storePath); // Memory v2 (drop-in; empty situation → v1 ordering)
 var harness = new AgentHarness(store, clock: () => "2026-07-27");
 var opt = new HarnessOptions(MaxIters: 3, Threshold: 0.80, RetrieveTopK: 3);
 
@@ -48,7 +48,8 @@ foreach (var (ticker, name, sources) in companies)
         var ctx = new AgentContext
         {
             Ticker = ticker,
-            Features = new AgentFeatures(candidate["industry"]!.GetValue<string>(), Array.Empty<string>()),
+            Features = new AgentFeatures(candidate["industry"]!.GetValue<string>(), Array.Empty<string>(),
+                Situation: $"{agent.Id} step for {ticker}, a {candidate["industry"]!.GetValue<string>()} company"),
             Input = candidate,
             AllowedSources = ((JsonArray)candidate["sources"]!).Select(s => s!.GetValue<string>()).ToList(),
         };
