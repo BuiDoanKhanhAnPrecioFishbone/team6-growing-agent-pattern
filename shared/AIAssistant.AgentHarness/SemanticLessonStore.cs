@@ -29,9 +29,9 @@ public sealed class SemanticLessonStore : ILessonStore
         List<Lesson> candidates;
         lock (_lock)
         {
-            // Step 1 — cheap metadata filter: this agent, this sector (or global), injectable (Verified), not stale.
+            // Step 1 — cheap metadata filter: this agent, this sector (or global), injectable (not Quarantined).
             candidates = _lessons
-                .Where(l => l.Agent == agent && (l.Sector == features.Sector || l.Sector == "*") && l.Trust == Trust.Verified)
+                .Where(l => l.Agent == agent && (l.Sector == features.Sector || l.Sector == "*") && l.Trust != Trust.Quarantined)
                 .Select(Clone).ToList();
         }
         if (candidates.Count == 0) return Array.Empty<Lesson>();
@@ -65,23 +65,59 @@ public sealed class SemanticLessonStore : ILessonStore
         return picked.Count > 0 ? picked : shortlisted.Take(topK).ToList();
     }
 
+    private const double DedupTheta = 0.92; // near-duplicate → merge instead of piling up
+    private const int PromoteAfter = 2;     // provisional → verified after this many helpful applications
+    private static readonly string[] InjectionMarkers =
+    {
+        "ignore previous", "ignore all previous", "disregard your", "disregard the above", "system:", "assistant:",
+        "you are now", "new instructions", "forget the above", "reveal the system", "<script", "javascript:",
+    };
+
+    // A learned lesson is untrusted input that will be injected into a prompt — validate before it can be used.
+    private static string? InjectionReason(Lesson l)
+    {
+        var text = $"{l.Condition} {l.Warning}".ToLowerInvariant();
+        if (text.Length > 600) return "too long";
+        foreach (var m in InjectionMarkers) if (text.Contains(m)) return $"injection marker: {m}";
+        return null;
+    }
+
     public async Task WriteAsync(Lesson lesson, CancellationToken ct = default)
     {
-        // D5 hooks: validate (injection) → set Trust=Provisional → dedup/merge → conflict-check.
+        // 1. injection-validation → Trust. Suspicious ⇒ Quarantined (stored, never injected). New learned ⇒ Provisional.
+        lesson.Trust = InjectionReason(lesson) is not null ? Trust.Quarantined
+                     : lesson.Trust == Trust.Verified ? Trust.Verified : Trust.Provisional;
+
+        // 2. embed (condition + warning)
         if (lesson.Embedding.Length == 0)
         {
             var basis = string.IsNullOrWhiteSpace(lesson.Condition) ? lesson.Warning : $"{lesson.Condition} — {lesson.Warning}";
             lesson.Embedding = await _embedder.EmbedAsync(basis, ct);
         }
+
         lock (_lock)
         {
+            // exact upsert by id — re-learning refreshes text, keeps stats & trust
             var existing = _lessons.FirstOrDefault(l => l.Id == lesson.Id);
-            if (existing is null) _lessons.Add(lesson);
-            else
+            if (existing is not null)
             {
                 existing.Warning = lesson.Warning; existing.Condition = lesson.Condition; existing.Type = lesson.Type;
                 existing.Embedding = lesson.Embedding; existing.LearnedFrom = lesson.LearnedFrom; existing.Date = lesson.Date;
+                Save(); return;
             }
+            // 3. dedup/merge — a near-duplicate of an existing (non-quarantined) lesson refreshes it instead of piling up
+            if (lesson.Trust != Trust.Quarantined)
+            {
+                var dup = _lessons.FirstOrDefault(l => l.Agent == lesson.Agent && l.Trust != Trust.Quarantined
+                            && l.Embedding.Length > 0 && Vec.Cosine(l.Embedding, lesson.Embedding) >= DedupTheta);
+                if (dup is not null)
+                {
+                    dup.Warning = lesson.Warning; dup.Condition = lesson.Condition; dup.LastUsed = lesson.Date;
+                    Save(); return; // merged
+                }
+            }
+            // 4. conflict-check (light, TODO): flag semantically-opposite Verified lessons for human resolution.
+            _lessons.Add(lesson);
             Save();
         }
     }
@@ -97,9 +133,18 @@ public sealed class SemanticLessonStore : ILessonStore
                 if (helped) l.TimesHelped++;
                 l.HitRate = l.TimesApplied == 0 ? 0 : Math.Round((double)l.TimesHelped / l.TimesApplied, 4);
                 l.LastUsed = l.Date;
+                // promotion: a provisional lesson that keeps helping earns Verified.
+                if (l.Trust == Trust.Provisional && l.TimesHelped >= PromoteAfter && l.HitRate >= 0.6) l.Trust = Trust.Verified;
                 Save();
             }
         }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Human confirmation at a gate promotes a provisional lesson to Verified.</summary>
+    public Task PromoteAsync(string id, CancellationToken ct = default)
+    {
+        lock (_lock) { var l = _lessons.FirstOrDefault(x => x.Id == id); if (l is { Trust: Trust.Provisional }) { l.Trust = Trust.Verified; Save(); } }
         return Task.CompletedTask;
     }
 

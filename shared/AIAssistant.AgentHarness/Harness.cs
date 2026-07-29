@@ -58,7 +58,7 @@ public sealed class Lesson
     public LessonType Type { get; set; } = LessonType.GroundingRule;
     public string Condition { get; set; } = "";                 // when it applies — short & embeddable
     public float[] Embedding { get; set; } = Array.Empty<float>(); // vector of (Condition + summary)
-    public Trust Trust { get; set; } = Trust.Verified;          // D1-2 skeleton default; D5 = Provisional + promotion
+    public Trust Trust { get; set; } = Trust.Provisional;       // learned lessons start Provisional; promote on hit-rate or a human gate
     public string LastUsed { get; set; } = "";                  // for staleness
 }
 
