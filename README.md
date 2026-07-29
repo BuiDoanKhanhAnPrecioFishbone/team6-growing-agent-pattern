@@ -107,10 +107,15 @@ self-refinement — behind the same `ILessonStore` seam, so agents don't change.
 
 - **`SemanticLessonStore`** — embed the situation → vector shortlist → a cheap LLM picks the *applicable*
   lessons → two-phase load. Set `AGENT_EMBED_*` for Azure embeddings; offline it uses a hash embedder.
+- **Self-refining writes** (`SemanticLessonStore`): learned lessons start `Provisional` and promote to
+  `Verified` on hit-rate or a human gate; injection-validated (suspicious → `Quarantined`, never injected);
+  near-duplicates merge instead of piling up.
+- **Tools** (`Tools.cs`): agents call `memory_search` (their own memory) and deterministic compute tools via
+  a function-calling loop — read-only tools run free, mutating ones gate. `McpToolSource` is the MCP seam.
 - **Measured A/B** (`abeval/`): as memory fills with noise, exact-match retrieval collapses toward 0 while
-  semantic + recall holds 0.67–1.0. `memtest/` is a small recall verifier. Run: `dotnet run --project abeval`.
-- Done: model + embeddings + store (D1–2), LLM recall + two-phase (D3–4), the A/B chart (D6–7).
-  Next: write-time refine + injection defense (D5), tool loop + MCP (D8–10).
+  semantic + recall holds 0.67–1.0. `memtest/` and `tooltest/` verify recall/refine and the tool loop.
+- **Status:** D1–2 store · D3–4 recall + two-phase · D5 refine + injection defense · D6–7 A/B chart ·
+  D8–10 tool loop + `memory_search` + MCP seam — **all done**. Remaining: robust conflict-check + full MCP transport.
 
 ---
 *Requires .NET 8 SDK. The agents run offline with deterministic mock models; supply `AGENT_LLM_*` to use
