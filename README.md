@@ -114,6 +114,9 @@ self-refinement — behind the same `ILessonStore` seam, so agents don't change.
   a function-calling loop — read-only tools run free, mutating ones gate. `McpToolSource` is the MCP seam.
 - **Measured A/B** (`abeval/`): as memory fills with noise, exact-match retrieval collapses toward 0 while
   semantic + recall holds 0.67–1.0. `memtest/` and `tooltest/` verify recall/refine and the tool loop.
+- **Second domain / real reward** (`codeagent/`): a code agent whose reward is *unit tests pass* (run in a
+  Python subprocess). With learned memory it solves **80% of problems first-try vs 0% without** — real
+  end-to-end learning on a deterministic reward, proving the harness is domain-agnostic. Run: `dotnet run --project codeagent`.
 - **Status:** D1–2 store · D3–4 recall + two-phase · D5 refine + injection defense · D6–7 A/B chart ·
   D8–10 tool loop + `memory_search` + MCP seam — **all done**. Remaining: robust conflict-check + full MCP transport.
 

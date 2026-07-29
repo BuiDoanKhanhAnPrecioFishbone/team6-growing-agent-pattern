@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <!-- #2: a code agent with a REAL reward (unit tests pass) on the same harness. Not in the solution. -->
+  <ItemGroup>
+    <ProjectReference Include="..\shared\AIAssistant.AgentHarness\AIAssistant.AgentHarness.csproj" />
+  </ItemGroup>
+</Project>
