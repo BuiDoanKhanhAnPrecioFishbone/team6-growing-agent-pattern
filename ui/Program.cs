@@ -8,7 +8,7 @@ AIAssistant.AgentHost.Model.Configure(); // read AGENT_LLM_* — live Foundry mo
 var builder = WebApplication.CreateBuilder(args);
 var storePath = Environment.GetEnvironmentVariable("FLOW_LESSON_STORE")
                 ?? Path.Combine(AppContext.BaseDirectory, "ui-lessons.json");
-builder.Services.AddSingleton(new JsonLessonStore(storePath));
+builder.Services.AddSingleton(new SemanticLessonStore(storePath)); // Memory v2 in the UI too
 builder.Services.AddSingleton(HarnessOptions.FromEnvironment());
 var app = builder.Build();
 app.UseDefaultFiles();
@@ -25,7 +25,7 @@ var pipeline = new (string Key, IAgent Agent, string? Gate)[]
 };
 
 // ── Stepwise, pause-at-each-gate execution (server-side run sessions) ──
-var store = app.Services.GetRequiredService<JsonLessonStore>();
+var store = app.Services.GetRequiredService<SemanticLessonStore>();
 var harness = new AgentHarness(store, () => "2026-07-27");
 var opt = app.Services.GetRequiredService<HarnessOptions>();
 var sessions = new System.Collections.Concurrent.ConcurrentDictionary<string, Sess>();
@@ -38,7 +38,8 @@ async Task<JsonObject> RunOne(JsonObject candidate, int idx)
     var ctx = new AgentContext
     {
         Ticker = candidate["ticker"]!.GetValue<string>(),
-        Features = new AgentFeatures(candidate["industry"]!.GetValue<string>(), Array.Empty<string>()),
+        Features = new AgentFeatures(candidate["industry"]!.GetValue<string>(), Array.Empty<string>(),
+            Situation: $"{agent.Id} step for {candidate["ticker"]?.GetValue<string>()}, a {candidate["industry"]!.GetValue<string>()} company"),
         Input = candidate,
         AllowedSources = ((JsonArray)candidate["sources"]!).Select(s => s!.GetValue<string>()).ToList(),
     };
@@ -122,7 +123,13 @@ app.MapPost("/api/run/gate", async (GateRequest g) =>
     if (g.RunId is null || !sessions.TryGetValue(g.RunId, out var s)) return Results.NotFound(new { error = "unknown runId" });
     if (s.PendingGate < 0) return Results.BadRequest(new { error = "no pending gate" });
     var idx = s.PendingGate; var key = pipeline[idx].Key;
-    if (g.Decision == "confirm") { ApplyGate(s.Candidate, key); s.PendingGate = -1; return Results.Json(new { ok = true, resolved = true }); }
+    if (g.Decision == "confirm")
+    {
+        ApplyGate(s.Candidate, key);
+        await store.PromoteForAgentAsync(pipeline[idx].Agent.Id); // human confirm at the gate → promote its provisional lessons
+        s.PendingGate = -1;
+        return Results.Json(new { ok = true, resolved = true });
+    }
 
     if (!string.IsNullOrWhiteSpace(g.Trigger) && !string.IsNullOrWhiteSpace(g.Warning))
         await store.WriteAsync(new Lesson
@@ -137,7 +144,7 @@ app.MapPost("/api/run/gate", async (GateRequest g) =>
 });
 
 // POST /api/run — one-shot run of the whole flow (gates auto-confirmed). Kept for scripting.
-app.MapPost("/api/run", async (RunRequest req, JsonLessonStore store, HarnessOptions opt) =>
+app.MapPost("/api/run", async (RunRequest req, SemanticLessonStore store, HarnessOptions opt) =>
 {
     var harness = new AgentHarness(store, () => "2026-07-27");
     var candidate = Seed(req);
@@ -149,7 +156,8 @@ app.MapPost("/api/run", async (RunRequest req, JsonLessonStore store, HarnessOpt
         var ctx = new AgentContext
         {
             Ticker = candidate["ticker"]!.GetValue<string>(),
-            Features = new AgentFeatures(candidate["industry"]!.GetValue<string>(), Array.Empty<string>()),
+            Features = new AgentFeatures(candidate["industry"]!.GetValue<string>(), Array.Empty<string>(),
+            Situation: $"{agent.Id} step for {candidate["ticker"]?.GetValue<string>()}, a {candidate["industry"]!.GetValue<string>()} company"),
             Input = candidate,
             AllowedSources = ((JsonArray)candidate["sources"]!).Select(s => s!.GetValue<string>()).ToList(),
         };
@@ -191,7 +199,7 @@ app.MapPost("/api/run", async (RunRequest req, JsonLessonStore store, HarnessOpt
 
 // POST /api/teach — a human evaluation becomes a lesson the agent applies next run. This is "training"
 // in the Foundry-only sense (context, not weights) — and the same records become the ART corpus later.
-app.MapPost("/api/teach", async (TeachRequest t, JsonLessonStore store) =>
+app.MapPost("/api/teach", async (TeachRequest t, SemanticLessonStore store) =>
 {
     if (string.IsNullOrWhiteSpace(t.Agent) || string.IsNullOrWhiteSpace(t.Trigger) || string.IsNullOrWhiteSpace(t.Warning))
         return Results.BadRequest(new { error = "agent, trigger and warning are required" });
@@ -205,8 +213,8 @@ app.MapPost("/api/teach", async (TeachRequest t, JsonLessonStore store) =>
 });
 
 app.MapGet("/api/status", () => Results.Json(new { model = AIAssistant.AgentHost.Model.Name, live = AIAssistant.AgentHost.Model.Enabled }));
-app.MapGet("/api/lessons", async (JsonLessonStore store) => Results.Json(await store.AllAsync()));
-app.MapPost("/api/reset", (JsonLessonStore store) => { store.Clear(); return Results.Ok(new { ok = true }); });
+app.MapGet("/api/lessons", async (SemanticLessonStore store) => Results.Json(await store.AllAsync()));
+app.MapPost("/api/reset", (SemanticLessonStore store) => { store.Clear(); return Results.Ok(new { ok = true }); });
 
 if (!args.Any(a => a.StartsWith("--urls")) && Environment.GetEnvironmentVariable("ASPNETCORE_URLS") is null)
     app.Urls.Add("http://localhost:5300");

@@ -159,6 +159,7 @@ async function stepLoop(){
 async function gateConfirm(){
   const gi=[...items].reverse().find(it=>it.kind==='gate'&&it.state==='await'); if(gi){ gi.state='ok'; render(); }
   await fetch('/api/run/gate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId,decision:'confirm'})});
+  loadLessons(); // show the just-promoted lessons flip to verified
   await stepLoop();
 }
 async function gateReject(pos){
@@ -249,9 +250,11 @@ async function loadLessons(){
   const r=await fetch('/api/lessons'); const ls=await r.json();
   const el=document.getElementById('lessons');
   if(!ls.length){ el.innerHTML='<div class="empty">No lessons yet — run the flow.</div>'; return; }
-  el.innerHTML='<table><thead><tr><th>agent · rule</th><th>src</th><th>hit</th><th>×</th></tr></thead><tbody>'+
-    ls.sort((a,b)=>a.id.localeCompare(b.id)).map(l=>`<tr title="${esc(l.warning)}"><td>${esc(l.agent.replace('s','S').replace('-',' '))} · ${esc(l.trigger)}</td><td>${esc(l.learnedFrom)}</td><td class="hr">${(l.hitRate).toFixed(2)}</td><td>${l.timesApplied}</td></tr>`).join('')+
-    '</tbody></table><div class="note">“src=human” = taught via this panel. hit = timesHelped ÷ timesApplied.</div>';
+  const T=['provisional','verified','quarantined'];
+  const col={provisional:'var(--amber)',verified:'var(--accent)',quarantined:'var(--clay)'};
+  el.innerHTML='<table><thead><tr><th>agent · rule</th><th>trust</th><th>hit</th><th>×</th></tr></thead><tbody>'+
+    ls.sort((a,b)=>a.id.localeCompare(b.id)).map(l=>{const t=T[l.trust]||'provisional';return `<tr title="${esc(l.warning)}"><td>${esc(l.agent.replace('-',' '))} · ${esc(l.trigger)}</td><td><span style="color:${col[t]};font-family:var(--mono);font-size:.64rem">${t}</span></td><td class="hr">${(l.hitRate).toFixed(2)}</td><td>${l.timesApplied}</td></tr>`;}).join('')+
+    '</tbody></table><div class="note">confirm a gate → that agent’s lessons promote to <span style="color:var(--accent)">verified</span>. quarantined = failed the injection check, never injected.</div>';
 }
 
 async function resetMem(){ await fetch('/api/reset',{method:'POST'}); lastTotal=null; document.getElementById('compound').textContent=''; loadLessons(); toast('memory wiped — next run learns from scratch'); }

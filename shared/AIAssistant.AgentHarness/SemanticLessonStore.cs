@@ -148,6 +148,16 @@ public sealed class SemanticLessonStore : ILessonStore
         return Task.CompletedTask;
     }
 
+    /// <summary>Promote all of an agent's provisional lessons — a human confirming that agent's gate endorses them.</summary>
+    public Task PromoteForAgentAsync(string agent, CancellationToken ct = default)
+    {
+        lock (_lock) { foreach (var l in _lessons.Where(l => l.Agent == agent && l.Trust == Trust.Provisional)) l.Trust = Trust.Verified; Save(); }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Wipe the memory — the UI's reset, so a fresh run learns from scratch.</summary>
+    public void Clear() { lock (_lock) { _lessons.Clear(); Save(); } }
+
     public Task<IReadOnlyList<Lesson>> AllAsync(CancellationToken ct = default)
     {
         lock (_lock) { return Task.FromResult((IReadOnlyList<Lesson>)_lessons.Select(Clone).ToList()); }
