@@ -19,9 +19,19 @@ shared/
 s1-screen/  s2-moat/  s3-financials/  s4-valuation/  s5-allocate/  s6-monitor/
                                      the SIX agents — each its own runnable service (ports 5301–5306)
 orchestrator/                        runs S1→S6 over one candidate file, auto-confirming the 4 human gates
-_template/                           COPY ME to build a new agent — implement three methods
-docs/                                the playbook & pitch one-pagers
+_template/                           COPY ME to build a new agent IN THIS REPO — implement three methods
+pack.ps1                             pack the harness as NuGet, to build agents in a SEPARATE repo
+.claude/skills/build-growing-agent/  the pattern as a skill — coding agents (Claude Code / Codex) follow it
+PATTERN.md · RUNNING.md              the playbook (why & the contract) & how to run + wire credentials
+docs/
+  START-A-NEW-REPO.md                build agents in another repo (NuGet or vendor the harness)
+  FOUNDRY-SETUP.md                   find your Foundry endpoint, key & deployment names
+  + pitch one-pagers (HTML)
 ```
+
+**Three ways to build a new agent** — inside this repo (`_template`), in a separate repo
+([`docs/START-A-NEW-REPO.md`](docs/START-A-NEW-REPO.md)), or by letting a coding agent follow the
+[`build-growing-agent`](.claude/skills/build-growing-agent/) skill. See [Build a new agent](#build-a-new-agent) below.
 
 Every agent implements the same three-method `IAgent` contract on the shared harness. The loop, memory
 and reward-shape are written **once** and never re-implemented per agent.
