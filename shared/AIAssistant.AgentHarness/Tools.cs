@@ -135,6 +135,28 @@ public sealed class WebSearchTool : ITool
     }
 }
 
+/// <summary>The default self-verify critic (amplifier lever): a cheap LLM reviewer that flags concrete
+/// problems in a draft the deterministic reward already passed — the soft errors a reward can't encode.
+/// Inert when no model is configured, so offline runs stay fully deterministic.</summary>
+public sealed class LlmCritic : ICritic
+{
+    private const string Sys =
+        "You are a meticulous reviewer. Given a TASK INPUT and a CANDIDATE answer, list concrete, specific " +
+        "problems with the candidate: factual errors, invented or unsupported claims, missing required parts, " +
+        "internal contradictions. Use terse bullet points. If the candidate is fully correct and complete, " +
+        "reply with exactly: OK";
+
+    public async Task<string?> CritiqueAsync(AgentContext ctx, string draft, Reward reward, CancellationToken ct)
+    {
+        if (!ToolLoop.Enabled) return null; // no live model ⇒ inert
+        string verdict;
+        try { verdict = (await ToolLoop.CompleteAsync(Sys, $"TASK INPUT:\n{ctx.Input.ToJsonString()}\n\nCANDIDATE:\n{draft}", 0, ct)).Trim(); }
+        catch { return null; }              // a critic failure must never break the loop
+        return verdict.Length == 0 || verdict.TrimStart('#', '*', '-', ' ', '`').StartsWith("OK", StringComparison.OrdinalIgnoreCase)
+            ? null : verdict;
+    }
+}
+
 /// <summary>MCP seam (Claude Code Ch 15) — connects an MCP server and wraps its tools as <see cref="ITool"/>.
 /// Transport/OAuth is the documented fast-follow; MCP tools default to gated (ReadOnly=false) until the
 /// operator marks them safe.</summary>

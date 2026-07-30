@@ -156,7 +156,12 @@ in the harness (domain-agnostic; every agent inherits them), non-breaking, and c
   per round and keeps the one the **reward** scores highest. `HarnessOutcome.Generations` reports the spend.
 - **Web-search grounding** (`WebSearchTool`): the model looks facts up instead of guessing — keyless
   (Wikipedia) by default, a keyed provider drops in at `WebSearch.FromEnvironment`.
-- **Self-verify** and **model cascade** (cheap→strong only on hard cases) are the next two levers.
+- **Self-verify** (`AGENT_SELF_VERIFY=1`): an LLM critic reviews each draft and can force another revision
+  for soft errors the deterministic reward can't see — the reward still owns scoring.
+- **Model cascade** (`AGENT_LLM_MODEL_STRONG=<deployment>`): the loop runs the cheap model, and escalates to
+  the bigger deployment **only** when it finishes below threshold — pay for the frontier model on hard cases only.
+
+Every lever is off by default and inert without a live model, so the offline pipeline is byte-for-byte unchanged.
 
 **Proof** (`ampeval/`): the same cheap model answers a factual suite twice — bare, then +`web_search` —
 printing an accuracy table. Live-only: set `AGENT_LLM_*` then `dotnet run --project ampeval`.

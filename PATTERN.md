@@ -120,8 +120,14 @@ fixed, and **what each agent extends**.
   - **Tool grounding** *(`Tools.cs`)*: let the model look facts up instead of guessing — `WebSearchTool`
     (keyless Wikipedia backend by default) and `memory_search` run in the read-only-free / mutating-gated
     `ToolLoop`. Grounding is the antidote to a cheap model's #1 failure, hallucination.
-  - **Model cascade** *(seam)*: run the cheap model first, escalate to a bigger one only when the reward
-    stays below threshold — pay for the frontier model only on the hard cases.
+  - **Self-verify** *(built in — `AGENT_SELF_VERIFY=1`)*: an LLM critic (`LlmCritic`) reviews each round's
+    best draft and can demand another revision for soft errors the deterministic reward can't encode. The
+    reward still owns scoring and selection — the critic only enriches the fix-list, within the same budget.
+  - **Model cascade** *(built in — `AGENT_LLM_MODEL_STRONG=<deployment>`)*: run the cheap model through the
+    loop; only if it finishes below threshold does the harness make one attempt on the bigger deployment —
+    same reward judges it, kept only if it scores higher. Pay for the frontier model on the hard cases only.
+
+  All four are **off by default** and **inert without a live model**, so the offline pipeline is unchanged.
 - **Retrieval (`LessonStore.Retrieve`).** Today it scopes by `agent + sector`, ranked by hit-rate. As a
   memory grows you can extend the match to `Tags` or to embedding similarity — the loop doesn't change.
 - **Backing store.** The three ops (`Retrieve` / `Write` / `RecordApplication`) are the contract; the store

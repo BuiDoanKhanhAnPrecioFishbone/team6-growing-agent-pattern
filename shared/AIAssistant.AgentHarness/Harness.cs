@@ -111,7 +111,8 @@ public sealed record HarnessOptions(int MaxIters, double Threshold, int Retrieve
 
 /// <summary>What one run of the loop produced, with the telemetry that proves it compounds.
 /// <see cref="Generations"/> is the total model drafts spent this run (iterations × samples) — the cost
-/// signal, so a caller can trade quality against spend.</summary>
+/// signal, so a caller can trade quality against spend. <see cref="Escalated"/> records whether the run
+/// fell back to a stronger model.</summary>
 public sealed record HarnessOutcome(
     string? BestDraft,
     Reward Best,
@@ -119,7 +120,28 @@ public sealed record HarnessOutcome(
     double FirstScore,
     IReadOnlyList<string> InjectedLessons,
     IReadOnlyList<string> LearnedLessons,
-    int Generations = 0);
+    int Generations = 0,
+    bool Escalated = false);
+
+/// <summary>
+/// Optional self-verification (amplifier lever). An LLM critic inspects a draft the deterministic
+/// <see cref="Reward"/> couldn't fault and returns concrete fixes, or <c>null</c> when it has no objection.
+/// The reward stays the sole authority for scoring and selection — the critic only enriches the revision
+/// signal, so a soft-quality error gets one more pass within the existing iteration budget.
+/// </summary>
+public interface ICritic
+{
+    Task<string?> CritiqueAsync(AgentContext ctx, string draft, Reward reward, CancellationToken ct);
+}
+
+/// <summary>
+/// Optional escalation (amplifier lever). Called when the cheap-model loop finishes below threshold:
+/// regenerate one draft with a STRONGER model — so you pay for the big model only on the hard cases.
+/// Returns <c>null</c> to decline (e.g. no strong model configured). The harness evaluates the returned
+/// draft with the same reward and keeps it only if it scores higher.
+/// </summary>
+public delegate Task<string?> EscalateDraft(
+    IAgent agent, AgentContext ctx, IReadOnlyList<Lesson> lessons, string? critique, CancellationToken ct);
 
 /// <summary>
 /// The fast loop. Improves WITHIN a run (revise on critique) and RUN-TO-RUN (episodic memory).
@@ -130,11 +152,24 @@ public sealed class AgentHarness
 {
     private readonly ILessonStore _memory;
     private readonly Func<string> _clock; // injectable for determinism/testing
+    private readonly ICritic? _critic;    // optional self-verify (null ⇒ off, deterministic)
+    private readonly EscalateDraft? _escalate; // optional cheap→strong fallback (null ⇒ off)
 
-    public AgentHarness(ILessonStore memory, Func<string>? clock = null)
+    public AgentHarness(ILessonStore memory, Func<string>? clock = null, ICritic? critic = null, EscalateDraft? escalate = null)
     {
         _memory = memory;
         _clock = clock ?? (() => DateTime.UtcNow.ToString("yyyy-MM-dd"));
+        _critic = critic;
+        _escalate = escalate;
+    }
+
+    // Fold the deterministic reward's critique together with the LLM reviewer's notes into one fix-list.
+    private static string? Combine(string? rewardCritique, string? reviewerNotes)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(rewardCritique)) parts.Add(rewardCritique!);
+        if (!string.IsNullOrWhiteSpace(reviewerNotes)) parts.Add("Reviewer also flagged:\n" + reviewerNotes);
+        return parts.Count == 0 ? null : string.Join("\n", parts);
     }
 
     public async Task<HarnessOutcome> RunAsync(IAgent agent, AgentContext ctx, HarnessOptions opt, CancellationToken ct)
@@ -148,6 +183,7 @@ public sealed class AgentHarness
         string? critique = null, prior = null;
         var rounds = 0;
         var generations = 0;
+        var escalated = false;
 
         for (var iter = 0; iter < opt.MaxIters; iter++)
         {
@@ -168,11 +204,32 @@ public sealed class AgentHarness
             }
 
             if (best is null || roundBest!.Score > best.Score) { best = roundBest; bestDraft = roundBestDraft; }
-            if (best.Pass && best.Score >= opt.Threshold) break;
+            var passed = best.Pass && best.Score >= opt.Threshold;
+
+            // ── self-verify: an LLM critic may object even when the reward is satisfied (soft errors the
+            //    deterministic reward can't see). Selection stays reward-only; this only shapes the revise. ──
+            string? reviewerNotes = _critic is null ? null
+                : await _critic.CritiqueAsync(ctx, roundBestDraft!, roundBest!, ct);
+
+            if (passed && reviewerNotes is null) break;   // reward satisfied AND no reviewer objection
             if (iter == opt.MaxIters - 1) break;
 
-            critique = roundBest!.Critique; // revise from the round's best draft with its fix-list
+            critique = Combine(passed ? null : roundBest!.Critique, reviewerNotes); // revise from the round's best draft
             prior = roundBestDraft;
+        }
+
+        // ── escalate: the cheap loop finished below the bar → one attempt with a stronger model, hard
+        //    cases only. Same reward judges it; keep it only if it actually scores higher. ──
+        if (_escalate is not null && !(best!.Pass && best.Score >= opt.Threshold))
+        {
+            var esc = await _escalate(agent, ctx, injected, critique, ct);
+            if (!string.IsNullOrEmpty(esc))
+            {
+                var r = agent.Evaluate(esc, ctx);
+                generations++;
+                escalated = true;
+                if (r.Score > best.Score) { best = r; bestDraft = esc; }
+            }
         }
 
         // ── write-back: record each injected lesson's outcome (did it prevent its own mistake?) ──
@@ -194,6 +251,6 @@ public sealed class AgentHarness
 
         return new HarnessOutcome(
             bestDraft, best, rounds, firstReward.Score,
-            injected.Select(l => l.Id).ToList(), learned, generations);
+            injected.Select(l => l.Id).ToList(), learned, generations, escalated);
     }
 }

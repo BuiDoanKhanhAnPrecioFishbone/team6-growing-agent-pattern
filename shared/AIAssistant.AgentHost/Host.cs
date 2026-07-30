@@ -17,13 +17,30 @@ public static class Host
     public static Task Run(string[] args, IAgent agent, int port, string blockKey)
     {
         Model.Configure(); // read AGENT_LLM_* — live model if set, else the deterministic mock
+
+        // Amplifier levers, both opt-in and inert without a live model:
+        //   AGENT_SELF_VERIFY=1        → an LLM critic reviews each draft (self-verify)
+        //   AGENT_LLM_MODEL_STRONG=... → escalate hard cases (below threshold) to that bigger deployment
+        var selfVerify = (Environment.GetEnvironmentVariable("AGENT_SELF_VERIFY") ?? "").ToLowerInvariant() is "1" or "true" or "on" or "yes";
+        EscalateDraft? escalate = Model.StrongConfigured
+            ? async (a, ctx, lessons, critique, ct) => await Model.WithStrongModel(() => a.GenerateAsync(ctx, lessons, critique, null, 0, ct))
+            : null;
+
         var builder = WebApplication.CreateBuilder(args);
         builder.Services.AddSingleton(HarnessOptions.FromEnvironment());
         builder.Services.AddSingleton<ILessonStore>(_ => StoreFromEnv());
-        builder.Services.AddSingleton<AgentHarness>();
+        builder.Services.AddSingleton(sp => new AgentHarness(
+            sp.GetRequiredService<ILessonStore>(),
+            critic: selfVerify ? new LlmCritic() : null,
+            escalate: escalate));
         var app = builder.Build();
 
-        app.MapGet("/", () => Results.Ok(new { service = agent.Id, block = blockKey, status = "up", model = Model.Name, live = Model.Enabled }));
+        app.MapGet("/", () => Results.Ok(new
+        {
+            service = agent.Id, block = blockKey, status = "up",
+            model = Model.Name, live = Model.Enabled,
+            selfVerify, strongModel = Model.StrongName,
+        }));
 
         // POST /run — body is the candidate file. Runs the fast loop for THIS agent, merges its block
         // back in, and returns the candidate plus this agent's loop telemetry under `agent`.
@@ -51,6 +68,8 @@ public static class Host
                 ["score"] = o.Best.Score,
                 ["injectedLessons"] = new JsonArray(o.InjectedLessons.Select(x => (JsonNode?)x).ToArray()),
                 ["learnedLessons"] = new JsonArray(o.LearnedLessons.Select(x => (JsonNode?)x).ToArray()),
+                ["generations"] = o.Generations,
+                ["escalated"] = o.Escalated,
                 ["critique"] = o.Best.Critique,
             };
             return Results.Json(candidate);

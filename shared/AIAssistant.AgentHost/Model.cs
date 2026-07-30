@@ -14,7 +14,7 @@ public sealed record ChatMessage(string Role, string Content);
 /// Azure AI Foundry deployment. <c>AGENT_LLM_AUTH=api-key</c> + <c>AGENT_LLM_API_VERSION</c> switch to
 /// classic Azure OpenAI; the default (bearer, no version) matches the Foundry <c>/openai/v1</c> route.
 /// </summary>
-public sealed record ChatOptions(string? BaseUrl, string? ApiKey, string ModelName, double Temperature, string? ApiVersion, string AuthStyle)
+public sealed record ChatOptions(string? BaseUrl, string? ApiKey, string ModelName, double Temperature, string? ApiVersion, string AuthStyle, string? StrongModelName = null)
 {
     public bool Enabled => !string.IsNullOrWhiteSpace(BaseUrl);
 
@@ -28,7 +28,9 @@ public sealed record ChatOptions(string? BaseUrl, string? ApiKey, string ModelNa
             ModelName: Get("AGENT_LLM_MODEL") is { Length: > 0 } m ? m : "gpt-4o-mini",
             Temperature: D("AGENT_LLM_TEMPERATURE", 0.3),
             ApiVersion: Get("AGENT_LLM_API_VERSION"),
-            AuthStyle: (Get("AGENT_LLM_AUTH") ?? "bearer").ToLowerInvariant());
+            AuthStyle: (Get("AGENT_LLM_AUTH") ?? "bearer").ToLowerInvariant(),
+            // Escalation tier: the loop calls this bigger deployment only on hard cases (below threshold).
+            StrongModelName: Get("AGENT_LLM_MODEL_STRONG"));
     }
 }
 
@@ -38,9 +40,22 @@ public static class Model
 {
     private static ChatOptions _opt = new(null, null, "gpt-4o-mini", 0.3, null, "bearer");
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(120) };
+    private static readonly AsyncLocal<bool> _useStrong = new(); // scoped: escalation attempts run on the strong tier
 
     public static bool Enabled => _opt.Enabled;
     public static string Name => _opt.Enabled ? _opt.ModelName : "mock (offline)";
+
+    /// <summary>Whether an escalation (strong) deployment is configured — gates the cascade lever.</summary>
+    public static bool StrongConfigured => !string.IsNullOrWhiteSpace(_opt.StrongModelName);
+    public static string? StrongName => _opt.StrongModelName;
+    private static string CurrentModel() => _useStrong.Value && StrongConfigured ? _opt.StrongModelName! : _opt.ModelName;
+
+    /// <summary>Run <paramref name="f"/> with the strong model selected — the harness's escalation hook.</summary>
+    public static async Task<T> WithStrongModel<T>(Func<Task<T>> f)
+    {
+        _useStrong.Value = true;
+        try { return await f(); } finally { _useStrong.Value = false; }
+    }
 
     /// <summary>Read AGENT_LLM_* once at process start.</summary>
     public static void Configure() => _opt = ChatOptions.FromEnvironment();
@@ -81,7 +96,7 @@ public static class Model
 
         var payload = new JsonObject
         {
-            ["model"] = _opt.ModelName,
+            ["model"] = CurrentModel(),
             ["temperature"] = _opt.Temperature,
             ["max_tokens"] = 1200,
             ["response_format"] = new JsonObject { ["type"] = "json_object" },
