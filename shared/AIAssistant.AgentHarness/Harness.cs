@@ -90,7 +90,12 @@ public interface IAgent
     Lesson? LessonFor(string trigger, AgentContext ctx);
 }
 
-public sealed record HarnessOptions(int MaxIters, double Threshold, int RetrieveTopK)
+/// <summary>
+/// Loop knobs. <see cref="Samples"/> is the amplifier: per round the loop draws that many independent
+/// drafts and keeps the one the reward scores highest (best-of-N / inference-time compute). Samples=1 is
+/// the plain single-shot loop — the historical behaviour, so this is drop-in.
+/// </summary>
+public sealed record HarnessOptions(int MaxIters, double Threshold, int RetrieveTopK, int Samples = 1)
 {
     public static HarnessOptions FromEnvironment()
     {
@@ -99,18 +104,22 @@ public sealed record HarnessOptions(int MaxIters, double Threshold, int Retrieve
         return new HarnessOptions(
             MaxIters: Math.Max(1, I("S2_AGENT_MAX_ITERS", 3)),
             Threshold: D("S2_AGENT_THRESHOLD", 0.80),
-            RetrieveTopK: Math.Max(1, I("S2_AGENT_RETRIEVE_TOPK", 3)));
+            RetrieveTopK: Math.Max(1, I("S2_AGENT_RETRIEVE_TOPK", 3)),
+            Samples: Math.Max(1, I("AGENT_SAMPLES", 1)));
     }
 }
 
-/// <summary>What one run of the loop produced, with the telemetry that proves it compounds.</summary>
+/// <summary>What one run of the loop produced, with the telemetry that proves it compounds.
+/// <see cref="Generations"/> is the total model drafts spent this run (iterations × samples) — the cost
+/// signal, so a caller can trade quality against spend.</summary>
 public sealed record HarnessOutcome(
     string? BestDraft,
     Reward Best,
     int Iterations,
     double FirstScore,
     IReadOnlyList<string> InjectedLessons,
-    IReadOnlyList<string> LearnedLessons);
+    IReadOnlyList<string> LearnedLessons,
+    int Generations = 0);
 
 /// <summary>
 /// The fast loop. Improves WITHIN a run (revise on critique) and RUN-TO-RUN (episodic memory).
@@ -138,20 +147,32 @@ public sealed class AgentHarness
         Reward? firstReward = null;
         string? critique = null, prior = null;
         var rounds = 0;
+        var generations = 0;
 
         for (var iter = 0; iter < opt.MaxIters; iter++)
         {
             rounds++;
-            var draft = await agent.GenerateAsync(ctx, injected, critique, prior, iter, ct);
-            var r = agent.Evaluate(draft, ctx);
-            firstReward ??= r;
 
-            if (best is null || r.Score > best.Score) { best = r; bestDraft = draft; }
+            // ── best-of-N: draw Samples independent drafts this round; the reward picks the winner. ──
+            // A cheap model has a wide quality spread; sampling several and keeping the best is the
+            // single biggest inference-time lift. seed == iter when Samples==1 (byte-for-byte the old loop).
+            Reward? roundBest = null; string? roundBestDraft = null;
+            for (var s = 0; s < opt.Samples; s++)
+            {
+                var seed = iter * opt.Samples + s;
+                var draft = await agent.GenerateAsync(ctx, injected, critique, prior, seed, ct);
+                var r = agent.Evaluate(draft, ctx);
+                generations++;
+                firstReward ??= r;
+                if (roundBest is null || r.Score > roundBest.Score) { roundBest = r; roundBestDraft = draft; }
+            }
+
+            if (best is null || roundBest!.Score > best.Score) { best = roundBest; bestDraft = roundBestDraft; }
             if (best.Pass && best.Score >= opt.Threshold) break;
             if (iter == opt.MaxIters - 1) break;
 
-            critique = r.Critique; // revise from the same draft with its fix-list
-            prior = draft;
+            critique = roundBest!.Critique; // revise from the round's best draft with its fix-list
+            prior = roundBestDraft;
         }
 
         // ── write-back: record each injected lesson's outcome (did it prevent its own mistake?) ──
@@ -173,6 +194,6 @@ public sealed class AgentHarness
 
         return new HarnessOutcome(
             bestDraft, best, rounds, firstReward.Score,
-            injected.Select(l => l.Id).ToList(), learned);
+            injected.Select(l => l.Id).ToList(), learned, generations);
     }
 }

@@ -100,8 +100,8 @@ fixed, and **what each agent extends**.
 | `Reward` | reward shape | your `Breakdown` components + `FailedTriggers` keys | `Pass` / `Score` / `Critique` shape |
 | `Lesson` | one episodic note | the `Warning` text, `Trigger` keys, scope | the `Id` scheme + hit-rate fields |
 | `LessonStore` | the memory | the **backing store** (JSON → Cosmos) + richer retrieval | the three ops |
-| `AgentHarness` | the fast loop | tuning via `HarnessOptions`; optional model **cascade** / **best-of-N** | the loop shape |
-| `HarnessOptions` | tuning knobs | `MaxIters` / `Threshold` / `RetrieveTopK` (via env) | — |
+| `AgentHarness` | the fast loop | tuning via `HarnessOptions`; **best-of-N** (built-in) + optional model **cascade** | the loop shape |
+| `HarnessOptions` | tuning knobs | `MaxIters` / `Threshold` / `RetrieveTopK` / `Samples` (via env) | — |
 
 ### The extension points, concretely
 
@@ -111,10 +111,17 @@ fixed, and **what each agent extends**.
   environment inside it.
 - **Reward (`Evaluate`).** Fully agent-owned: your gates, your trigger keys, your 3–5 graded components.
   The only rule is it must stay deterministic (§9).
-- **Generation (`GenerateAsync`).** Swap the mock for a live Foundry model via `ChatClient`. Two cheap
-  upgrades the loop already supports in shape: a **model cascade** (small model first, escalate to a bigger
-  one only when a gate fails) and **best-of-N** sampling per iteration (S3's original loop did this — pick
-  the highest-scoring of N drafts before revising).
+- **Generation (`GenerateAsync`).** Swap the mock for a live Foundry model via `ChatClient`. The harness is
+  a **cheap-model amplifier** — inference-time compute that lifts a weak model toward frontier quality at a
+  fraction of the cost:
+  - **Best-of-N** *(built in — `HarnessOptions.Samples` / `AGENT_SAMPLES`)*: the loop draws N independent
+    drafts per round and keeps the one the **reward** scores highest. A cheap model has a wide quality
+    spread; sampling several and selecting is the single biggest lift. `Samples=1` is the plain loop.
+  - **Tool grounding** *(`Tools.cs`)*: let the model look facts up instead of guessing — `WebSearchTool`
+    (keyless Wikipedia backend by default) and `memory_search` run in the read-only-free / mutating-gated
+    `ToolLoop`. Grounding is the antidote to a cheap model's #1 failure, hallucination.
+  - **Model cascade** *(seam)*: run the cheap model first, escalate to a bigger one only when the reward
+    stays below threshold — pay for the frontier model only on the hard cases.
 - **Retrieval (`LessonStore.Retrieve`).** Today it scopes by `agent + sector`, ranked by hit-rate. As a
   memory grows you can extend the match to `Tags` or to embedding similarity — the loop doesn't change.
 - **Backing store.** The three ops (`Retrieve` / `Write` / `RecordApplication`) are the contract; the store

@@ -61,6 +61,80 @@ public sealed class ComputeMosTool : ITool
     }
 }
 
+/// <summary>A web-search backend. Keyless by default (Wikipedia); a keyed provider can be swapped in via
+/// <see cref="WebSearch.FromEnvironment"/> without touching the tool that uses it.</summary>
+public interface IWebSearch { Task<string> SearchAsync(string query, CancellationToken ct = default); }
+
+/// <summary>Keyless web search over Wikipedia's public API — grounds a cheap model in real facts with no
+/// secret to configure. Returns the top hit's clean summary plus a couple of snippets (HTML stripped),
+/// trimmed so it fits a prompt.</summary>
+public sealed class WikipediaSearch : IWebSearch
+{
+    private static readonly HttpClient Http = MakeClient();
+    private static HttpClient MakeClient()
+    {
+        var h = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        h.DefaultRequestHeaders.Add("User-Agent", "GrowingAgentHarness/0.1 (teaching demo)"); // Wikipedia API etiquette
+        return h;
+    }
+
+    public async Task<string> SearchAsync(string query, CancellationToken ct = default)
+    {
+        var searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=3&srsearch="
+                        + Uri.EscapeDataString(query);
+        var hits = JsonNode.Parse(await Http.GetStringAsync(searchUrl, ct))?["query"]?["search"] as JsonArray;
+        if (hits is null || hits.Count == 0) return "no results";
+
+        var top = hits[0]!["title"]!.GetValue<string>();
+        string summary;
+        try
+        {
+            var sumUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/" + Uri.EscapeDataString(top.Replace(' ', '_'));
+            summary = JsonNode.Parse(await Http.GetStringAsync(sumUrl, ct))?["extract"]?.GetValue<string>() ?? "";
+        }
+        catch { summary = StripHtml(hits[0]!["snippet"]?.GetValue<string>() ?? ""); }
+
+        var others = hits.Skip(1).Select(h => "• " + h!["title"]!.GetValue<string>() + ": " + StripHtml(h["snippet"]?.GetValue<string>() ?? ""));
+        var body = $"{top}: {summary}\n{string.Join("\n", others)}".Trim();
+        return body.Length > 700 ? body[..700] + "…" : body;
+    }
+
+    private static string StripHtml(string s) => System.Text.RegularExpressions.Regex.Replace(s, "<.*?>", "");
+}
+
+/// <summary>Picks a web-search backend from the environment — a keyed provider if one is configured, else
+/// the keyless Wikipedia backend. The single place to add Brave/Bing/Tavily later; the tool never changes.</summary>
+public static class WebSearch
+{
+    public static IWebSearch FromEnvironment() =>
+        // e.g. if (Environment.GetEnvironmentVariable("BRAVE_API_KEY") is { Length: > 0 } k) return new BraveSearch(k);
+        new WikipediaSearch();
+}
+
+/// <summary>Lets the agent look facts up instead of guessing — the antidote to a cheap model's #1 failure,
+/// hallucination. Read-only, so it runs freely in the tool loop. Keyless by default (Wikipedia).</summary>
+public sealed class WebSearchTool : ITool
+{
+    private readonly IWebSearch _search;
+    public WebSearchTool(IWebSearch? search = null) => _search = search ?? WebSearch.FromEnvironment();
+    public string Name => "web_search";
+    public string Description => "Search the web for current, factual information before you answer — names, dates, figures, definitions you are not certain about. Prefer this over guessing.";
+    public bool ReadOnly => true;
+    public JsonObject Parameters => new()
+    {
+        ["type"] = "object",
+        ["properties"] = new JsonObject { ["query"] = new JsonObject { ["type"] = "string", ["description"] = "what to look up" } },
+        ["required"] = new JsonArray("query"),
+    };
+    public async Task<string> InvokeAsync(JsonObject args, CancellationToken ct = default)
+    {
+        var q = args["query"]?.GetValue<string>() ?? "";
+        if (string.IsNullOrWhiteSpace(q)) return "error: empty query";
+        try { return await _search.SearchAsync(q, ct); }
+        catch (Exception e) { return "search unavailable: " + e.Message; }
+    }
+}
+
 /// <summary>MCP seam (Claude Code Ch 15) — connects an MCP server and wraps its tools as <see cref="ITool"/>.
 /// Transport/OAuth is the documented fast-follow; MCP tools default to gated (ReadOnly=false) until the
 /// operator marks them safe.</summary>
