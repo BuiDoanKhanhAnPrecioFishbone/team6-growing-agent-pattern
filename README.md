@@ -1,10 +1,17 @@
 # The Growing-Agent Pattern
 
-A solution of **six value-investing agents** that get **better run-to-run** on a hosted LLM
-(Azure AI Foundry), cost-optimized, with **no GPU and no model training**. Each agent is a policy in a
-deterministic environment, driven by **one reward** that gates it now (and could train it later),
-writing a **lesson** to memory after every run so the next run is smarter — and the whole S1→S6
-pipeline compounds.
+A reusable .NET harness that makes a **cheap** LLM (Azure AI Foundry `gpt-4.1-mini`) perform like a far
+more expensive one — **no GPU, no fine-tuning** — through inference-time scaffolding and a memory that
+**grows run-to-run**. An agent is a policy in a deterministic environment, driven by **one reward** that
+gates it now (and could train it later); every mistake the loop fixes becomes a **lesson** the next run
+recalls, so the whole pipeline compounds. The reference domain is a six-step value-investing pipeline
+(S1→S6), but the harness knows nothing about finance — swap the reward and it grows a **code agent** just
+as well.
+
+**Results — each is a program you can run** ([one-page overview](docs/harness-results.html)):
+code solved first-try **80% with memory vs 0% without** · grounding **5/6 → 6/6** · retrieval precision
+**1.000** as memory fills with noise · **13** live MCP tools · context compaction recalls a fact naive
+truncation forgets.
 
 > **Start with [`PATTERN.md`](PATTERN.md)** — the playbook (why it works, why Foundry can't run ART,
 > the contract, the invariants). Then [`RUNNING.md`](RUNNING.md) to run it and wire credentials.
@@ -24,6 +31,7 @@ pack.ps1                             pack the harness as NuGet, to build agents 
 .claude/skills/build-growing-agent/  the pattern as a skill — coding agents (Claude Code / Codex) follow it
 PATTERN.md · RUNNING.md              the playbook (why & the contract) & how to run + wire credentials
 docs/
+  harness-results.html               one-page results overview (open in a browser)
   START-A-NEW-REPO.md                build agents in another repo (NuGet or vendor the harness)
   FOUNDRY-SETUP.md                   find your Foundry endpoint, key & deployment names
   + pitch one-pagers (HTML)
@@ -48,6 +56,25 @@ dotnet run --project orchestrator -- --fresh
 Run 1 (VNM): every agent stumbles once on its own learnable flaw, fixes it, writes a lesson → 12 iters.
 Run 2 (MSN, same industry): each agent has its lesson injected and gets it right first try → **6 iters**.
 Fewer iterations = lower cost, pipeline-wide. Ends with a full recommendation (BUY, size, entry, monitor).
+
+### Every proof, one command each
+
+Each capability is backed by a runnable program. Offline ones need nothing; live ones need `AGENT_LLM_*`
+set to your Foundry deployment (see [`docs/FOUNDRY-SETUP.md`](docs/FOUNDRY-SETUP.md)).
+
+```bash
+# offline · deterministic
+dotnet run --project orchestrator -- --fresh   # the compounding pipeline (12 → 6 iters)
+dotnet run --project abeval                     # retrieval vs noise: semantic holds, exact-match collapses
+dotnet run --project codeagent                  # 2nd domain, real reward = unit tests (80% vs 0%)
+dotnet run --project mcptest                     # 13 real MCP tools over stdio (needs node)
+dotnet run --project memlife                     # memory lifecycle: decay/eviction/conflict — 7/7
+dotnet run --project ctxtest                     # context management — 11/11
+
+# live · set AGENT_LLM_* first
+dotnet run --project ampeval                     # grounding: bare 5/6 → +web_search 6/6
+dotnet run --project ctxdemo                     # context: compaction recalls, truncation forgets
+```
 
 ### Run a single agent as its own service
 

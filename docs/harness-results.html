@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Growing-Agent Harness — Results</title>
+<style>html{-webkit-text-size-adjust:100%}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root{
+    --ink:#0a1310; --panel:#0e1814; --panel-2:#0c1512; --line:#1d2c25;
+    --fg:#cfdad2; --fg-dim:#8ba095; --fg-faint:#5f7268;
+    --accent:#3ddc97; --accent-soft:#173026;
+    --good:#3ddc97; --bad:#e2726a; --warn:#d7a24e; --cool:#57b7c7;
+    --mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --maxw:64rem;
+  }
+  @media (prefers-color-scheme:light){
+    :root{
+      --ink:#f2f5f1; --panel:#ffffff; --panel-2:#f7faf7; --line:#dde6df;
+      --fg:#132019; --fg-dim:#516158; --fg-faint:#7d8d83;
+      --accent:#0f7a54; --accent-soft:#e2f1ea;
+      --good:#0f7a54; --bad:#b0473e; --warn:#96702a; --cool:#2b7d8c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#0a1310; --panel:#0e1814; --panel-2:#0c1512; --line:#1d2c25;
+    --fg:#cfdad2; --fg-dim:#8ba095; --fg-faint:#5f7268;
+    --accent:#3ddc97; --accent-soft:#173026;
+    --good:#3ddc97; --bad:#e2726a; --warn:#d7a24e; --cool:#57b7c7;
+  }
+  :root[data-theme="light"]{
+    --ink:#f2f5f1; --panel:#ffffff; --panel-2:#f7faf7; --line:#dde6df;
+    --fg:#132019; --fg-dim:#516158; --fg-faint:#7d8d83;
+    --accent:#0f7a54; --accent-soft:#e2f1ea;
+    --good:#0f7a54; --bad:#b0473e; --warn:#96702a; --cool:#2b7d8c;
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--ink); color:var(--fg); font-family:var(--sans);
+    line-height:1.6; -webkit-font-smoothing:antialiased; margin:0;}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:clamp(1.25rem,4vw,3rem);}
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  h1,h2,h3{text-wrap:balance; line-height:1.15; margin:0}
+  section{margin-top:clamp(2.75rem,6vw,4.5rem)}
+
+  .eyebrow{font-family:var(--mono); font-size:.72rem; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 1rem}
+  .prompt{color:var(--fg-faint)}
+
+  /* hero */
+  .hero h1{font-family:var(--mono); font-weight:600; letter-spacing:-.01em;
+    font-size:clamp(1.9rem,4.6vw,3rem);}
+  .hero h1 .hl{color:var(--accent)}
+  .lede{color:var(--fg-dim); font-size:clamp(1.02rem,1.8vw,1.2rem);
+    max-width:52ch; margin:1.15rem 0 0}
+
+  .strip{display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1.9rem}
+  .stat{border:1px solid var(--line); border-radius:.55rem; background:var(--panel);
+    padding:.7rem .95rem; display:flex; flex-direction:column; gap:.15rem; min-width:8.5rem}
+  .stat b{font-family:var(--mono); font-size:1.28rem; color:var(--accent); font-variant-numeric:tabular-nums}
+  .stat span{font-size:.74rem; color:var(--fg-dim); letter-spacing:.02em}
+
+  /* the loop */
+  .loop{display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin-top:1.4rem;
+    font-family:var(--mono); font-size:.82rem}
+  .node{border:1px solid var(--line); background:var(--panel); border-radius:.4rem; padding:.38rem .6rem; white-space:nowrap}
+  .node.k{border-color:var(--accent); color:var(--accent)}
+  .arrow{color:var(--fg-faint)}
+  .loopnote{color:var(--fg-dim); font-size:.85rem; margin-top:.7rem}
+
+  /* capability grid */
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(15.5rem,1fr)); gap:1rem; margin-top:1.5rem}
+  .card{border:1px solid var(--line); border-radius:.7rem; background:var(--panel); padding:1.15rem 1.2rem}
+  .card h3{font-size:1.02rem; display:flex; align-items:center; gap:.5rem}
+  .card h3 .tag{font-family:var(--mono); font-size:.62rem; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--fg-faint); border:1px solid var(--line); border-radius:1rem; padding:.12rem .5rem}
+  .card ul{margin:.7rem 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:.5rem}
+  .card li{position:relative; padding-left:1.05rem; font-size:.9rem; color:var(--fg-dim)}
+  .card li::before{content:"▹"; position:absolute; left:0; color:var(--accent)}
+  .card li b{color:var(--fg); font-weight:600}
+  .card li code{font-family:var(--mono); font-size:.82em; color:var(--cool)}
+
+  /* results table */
+  .tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:.7rem; margin-top:1.5rem; background:var(--panel)}
+  table{border-collapse:collapse; width:100%; min-width:40rem}
+  th,td{text-align:left; padding:.85rem 1rem; border-bottom:1px solid var(--line); vertical-align:top}
+  thead th{font-family:var(--mono); font-size:.68rem; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--fg-faint); font-weight:600}
+  tbody tr:last-child td{border-bottom:none}
+  td .what{font-weight:600}
+  td .proj{font-family:var(--mono); font-size:.78rem; color:var(--fg-dim)}
+  td .res{font-family:var(--mono); font-size:.86rem; font-variant-numeric:tabular-nums; color:var(--fg)}
+  .chip{display:inline-block; font-family:var(--mono); font-size:.68rem; letter-spacing:.06em; text-transform:uppercase;
+    padding:.16rem .5rem; border-radius:1rem; border:1px solid; white-space:nowrap}
+  .chip.pass{color:var(--good); border-color:color-mix(in oklab,var(--good) 45%,transparent)}
+  .chip.live{color:var(--warn); border-color:color-mix(in oklab,var(--warn) 45%,transparent)}
+
+  /* money-shot callouts */
+  .shots{display:grid; grid-template-columns:repeat(auto-fit,minmax(18rem,1fr)); gap:1rem; margin-top:1.25rem}
+  .shot{border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:.5rem; background:var(--panel-2); padding:1.1rem 1.2rem}
+  .shot h4{margin:0 0 .7rem; font-size:.95rem}
+  .shot .row{display:flex; gap:.6rem; align-items:baseline; font-family:var(--mono); font-size:.84rem; padding:.28rem 0}
+  .shot .lab{width:5.2rem; flex:none; color:var(--fg-faint); font-size:.7rem; letter-spacing:.08em; text-transform:uppercase}
+  .shot .bad{color:var(--bad)} .shot .good{color:var(--good)}
+  .shot p{margin:.75rem 0 0; font-size:.86rem; color:var(--fg-dim)}
+
+  /* run block */
+  pre{font-family:var(--mono); font-size:.83rem; line-height:1.75; background:var(--panel); border:1px solid var(--line);
+    border-radius:.7rem; padding:1.1rem 1.2rem; overflow-x:auto; margin:1.3rem 0 0}
+  pre .c{color:var(--fg-faint)}
+  pre .g{color:var(--accent)}
+
+  .sechead{display:flex; align-items:baseline; gap:.9rem; flex-wrap:wrap}
+  .sechead h2{font-size:clamp(1.35rem,2.6vw,1.8rem)}
+  .sechead p{margin:0; color:var(--fg-dim); font-size:.95rem}
+
+  footer{margin-top:clamp(3rem,7vw,5rem); padding-top:1.4rem; border-top:1px solid var(--line);
+    color:var(--fg-dim); font-family:var(--mono); font-size:.8rem;
+    display:flex; flex-wrap:wrap; gap:.4rem 1.2rem; justify-content:space-between}
+
+  @media (prefers-reduced-motion:no-preference){
+    .stat,.card{transition:border-color .18s ease}
+  }
+  .card:hover{border-color:color-mix(in oklab,var(--accent) 40%,var(--line))}
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow"><span class="prompt">~/team6 $</span> growing-agent-harness</p>
+    <h1>A cheap model plus a good harness <span class="hl">performs like a frontier one.</span></h1>
+    <p class="lede">No GPU. No fine-tuning. Just inference-time scaffolding and a memory that grows —
+      all on one Azure&nbsp;AI&nbsp;Foundry deployment of <code style="font-family:var(--mono)">gpt-4.1-mini</code>.
+      Every claim below is a program you can run.</p>
+
+    <div class="strip">
+      <div class="stat"><b>80% → </b><span>code solved first-try<br>vs 0% without memory</span></div>
+      <div class="stat"><b>5/6 → 6/6</b><span>facts right<br>bare vs +web&nbsp;search</span></div>
+      <div class="stat"><b>1.000</b><span>retrieval precision<br>as memory fills with noise</span></div>
+      <div class="stat"><b>13</b><span>live MCP tools<br>wired into any agent</span></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="sechead"><h2>The bet</h2><p>the whole idea in three lines</p></div>
+    <div class="grid" style="margin-top:1.25rem">
+      <div class="card"><h3>An agent is a policy</h3>
+        <ul><li>It runs in a deterministic environment, judged by <b>one reward</b> that gates it now and could train it later — the reward is the only authority on what's correct.</li></ul></div>
+      <div class="card"><h3>It improves two ways</h3>
+        <ul><li><b>Within a run</b> — sample, verify, revise against the reward.</li><li><b>Run-to-run</b> — every fixed mistake becomes a <b>lesson</b> the next run recalls. The pipeline compounds.</li></ul></div>
+      <div class="card"><h3>Domain-agnostic</h3>
+        <ul><li>The loop, memory and tools never mention finance. Swap the reward and the same harness grows a <b>code agent</b> (reward = unit tests pass).</li></ul></div>
+    </div>
+
+    <div class="loop">
+      <span class="node k">generate ×N</span><span class="arrow">→</span>
+      <span class="node k">evaluate · reward</span><span class="arrow">→</span>
+      <span class="node">retrieve lesson</span><span class="arrow">→</span>
+      <span class="node">revise</span><span class="arrow">→</span>
+      <span class="node k">keep best</span><span class="arrow">→</span>
+      <span class="node">write lesson</span>
+    </div>
+    <p class="loopnote">The fast loop. Best-of-N, grounding, self-verify and escalation all hang off it — off by default, so the pipeline still runs fully offline.</p>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>What the harness gives a weak model</h2><p>inference-time compute, not a bigger model</p></div>
+    <div class="grid">
+      <div class="card">
+        <h3>The amplifier <span class="tag">4 levers</span></h3>
+        <ul>
+          <li><b>Best-of-N</b> — draw N drafts, keep the one the reward scores highest <code>AGENT_SAMPLES</code></li>
+          <li><b>Web-search grounding</b> — look facts up instead of guessing (keyless Wikipedia)</li>
+          <li><b>Self-verify</b> — an LLM critic catches soft errors the reward can't <code>AGENT_SELF_VERIFY</code></li>
+          <li><b>Escalation</b> — call a bigger model <i>only</i> on hard cases <code>AGENT_LLM_MODEL_STRONG</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Memory, two timescales <span class="tag">keep / let go</span></h3>
+        <ul>
+          <li><b>Long-term lessons</b> — semantic retrieval + LLM recall; trust earned Provisional→Verified</li>
+          <li><b>Self-curating</b> — stale lessons decay, the least-valuable are evicted, contradictions demote a rule</li>
+          <li><b>Short-term context</b> — a long session is compacted to a token budget (recent sharp, old summarized)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Tools &amp; MCP <span class="tag">extensible</span></h3>
+        <ul>
+          <li><b>Built-ins</b> — <code>web_search</code>, <code>memory_search</code>, deterministic compute</li>
+          <li><b>Any MCP server</b> — a real stdio JSON-RPC client wraps each tool as one the agent can call</li>
+          <li><b>Safe by default</b> — read-only tools run free; mutating ones are gated</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Proof</h2><p>six programs — each result below is one you can reproduce</p></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>What it measures</th><th>Result</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="what">Memory that scales with noise</div><div class="proj">abeval</div></td>
+            <td class="res">semantic <b style="color:var(--good)">1.000</b> vs exact-match → <b style="color:var(--bad)">0.00</b><br>as distractors grow to 128</td>
+            <td><span class="chip pass">pass</span></td>
+          </tr>
+          <tr>
+            <td><div class="what">Real-reward learning (2nd domain)</div><div class="proj">codeagent · reward = unit tests</div></td>
+            <td class="res"><b style="color:var(--good)">80%</b> solved first-try with memory<br><b style="color:var(--bad)">0%</b> without</td>
+            <td><span class="chip pass">pass</span></td>
+          </tr>
+          <tr>
+            <td><div class="what">Grounding a cheap model</div><div class="proj">ampeval · gpt-4.1-mini</div></td>
+            <td class="res">bare <b>5/6</b> → +web_search <b style="color:var(--good)">6/6</b><br>same model, one tool</td>
+            <td><span class="chip live">live</span></td>
+          </tr>
+          <tr>
+            <td><div class="what">Long-session context</div><div class="proj">ctxdemo · 220-token budget</div></td>
+            <td class="res">compaction <b style="color:var(--good)">recalls</b> · truncation <b style="color:var(--bad)">forgets</b><br>same model, same budget</td>
+            <td><span class="chip live">live</span></td>
+          </tr>
+          <tr>
+            <td><div class="what">External tools over MCP</div><div class="proj">mcptest · stdio JSON-RPC</div></td>
+            <td class="res"><b>13</b> tools discovered<br>live <code>echo</code> + <code>get-sum</code> calls</td>
+            <td><span class="chip pass">pass</span></td>
+          </tr>
+          <tr>
+            <td><div class="what">Self-curation is correct</div><div class="proj">memlife · ctxtest</div></td>
+            <td class="res"><b style="color:var(--good)">7/7</b> · <b style="color:var(--good)">11/11</b><br>deterministic checks</td>
+            <td><span class="chip pass">pass</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="shots">
+      <div class="shot">
+        <h4>Why context management matters</h4>
+        <div class="row"><span class="lab">truncate</span><span class="bad">“target 8%, risk moderate” ✗</span></div>
+        <div class="row"><span class="lab">compact</span><span class="good">“target 12%, risk LOW” ✓</span></div>
+        <p>At the same budget a naive window didn't just forget the client mandate — it <b>confabulated a plausible wrong one</b>. Compaction's summary kept the real fact.</p>
+      </div>
+      <div class="shot">
+        <h4>Why grounding matters</h4>
+        <div class="row"><span class="lab">bare</span><span class="bad">“As of 2024, Warren Buffett is CEO” ✗</span></div>
+        <div class="row"><span class="lab">+web</span><span class="good">“Greg Abel” ✓</span></div>
+        <p>The model was <b>confidently wrong</b> about a post-training-cutoff fact. It can't know which of its facts are stale — grounding is cheap insurance that fixed exactly the one it missed.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Run it yourself</h2><p>offline needs nothing; live needs one Foundry deployment</p></div>
+    <pre><span class="c"># the compounding pipeline — offline, deterministic (run 1: 12 iters → run 2: 6)</span>
+dotnet run --project <span class="g">orchestrator</span> -- --fresh
+
+<span class="c"># capability proofs — offline</span>
+dotnet run --project <span class="g">mcptest</span>    <span class="c"># 13 real MCP tools (needs node)</span>
+dotnet run --project <span class="g">memlife</span>    <span class="c"># memory lifecycle — 7/7</span>
+dotnet run --project <span class="g">ctxtest</span>    <span class="c"># context management — 11/11</span>
+
+<span class="c"># live — set AGENT_LLM_* to your Foundry gpt-4.1-mini first</span>
+dotnet run --project <span class="g">ampeval</span>    <span class="c"># grounding: bare 5/6 → +web 6/6</span>
+dotnet run --project <span class="g">ctxdemo</span>    <span class="c"># context: compaction recalls, truncation forgets</span></pre>
+  </section>
+
+  <footer>
+    <span>.NET 8 · Azure AI Foundry · gpt-4.1-mini · no GPU, no fine-tuning</span>
+    <span>team6 · Omnia-PF-Hackathon-2026</span>
+  </footer>
+
+</div>
+</body>
+</html>
