@@ -203,7 +203,8 @@ public sealed class AgentHarness
                 if (roundBest is null || r.Score > roundBest.Score) { roundBest = r; roundBestDraft = draft; }
             }
 
-            if (best is null || roundBest!.Score > best.Score) { best = roundBest; bestDraft = roundBestDraft; }
+            // Samples ≥ 1, so roundBest is always assigned above — assert it to keep `best` non-null.
+            if (best is null || roundBest!.Score > best.Score) { best = roundBest!; bestDraft = roundBestDraft; }
             var passed = best.Pass && best.Score >= opt.Threshold;
 
             // ── self-verify: an LLM critic may object even when the reward is satisfied (soft errors the
