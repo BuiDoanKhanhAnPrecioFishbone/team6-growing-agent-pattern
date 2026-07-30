@@ -135,8 +135,9 @@ self-refinement — behind the same `ILessonStore` seam, so agents don't change.
 - **Self-refining writes** (`SemanticLessonStore`): learned lessons start `Provisional` and promote to
   `Verified` on hit-rate or a human gate; injection-validated (suspicious → `Quarantined`, never injected);
   near-duplicates merge instead of piling up.
-- **Tools** (`Tools.cs`): agents call `memory_search` (their own memory) and deterministic compute tools via
-  a function-calling loop — read-only tools run free, mutating ones gate. `McpToolSource` is the MCP seam.
+- **Tools** (`Tools.cs`): agents call `web_search` (keyless Wikipedia), `memory_search` (their own memory)
+  and deterministic compute tools via a function-calling loop — read-only tools run free, mutating ones gate.
+  `McpToolSource` is the MCP seam.
 - **Measured A/B** (`abeval/`): as memory fills with noise, exact-match retrieval collapses toward 0 while
   semantic + recall holds 0.67–1.0. `memtest/` and `tooltest/` verify recall/refine and the tool loop.
 - **Second domain / real reward** (`codeagent/`): a code agent whose reward is *unit tests pass* (run in a
@@ -144,6 +145,21 @@ self-refinement — behind the same `ILessonStore` seam, so agents don't change.
   end-to-end learning on a deterministic reward, proving the harness is domain-agnostic. Run: `dotnet run --project codeagent`.
 - **Status:** D1–2 store · D3–4 recall + two-phase · D5 refine + injection defense · D6–7 A/B chart ·
   D8–10 tool loop + `memory_search` + MCP seam — **all done**. Remaining: robust conflict-check + full MCP transport.
+
+## The amplifier — a cheap model, frontier-ish quality
+
+The harness is **inference-time compute**: spend a little more structured thinking per task so a cheap model
+(gpt-4.1-mini) reaches quality that usually needs a bigger model — the cost-optimized bet. The levers are all
+in the harness (domain-agnostic; every agent inherits them), non-breaking, and composable:
+
+- **Best-of-N** (`HarnessOptions.Samples` / `AGENT_SAMPLES`, default 1): the loop draws N independent drafts
+  per round and keeps the one the **reward** scores highest. `HarnessOutcome.Generations` reports the spend.
+- **Web-search grounding** (`WebSearchTool`): the model looks facts up instead of guessing — keyless
+  (Wikipedia) by default, a keyed provider drops in at `WebSearch.FromEnvironment`.
+- **Self-verify** and **model cascade** (cheap→strong only on hard cases) are the next two levers.
+
+**Proof** (`ampeval/`): the same cheap model answers a factual suite twice — bare, then +`web_search` —
+printing an accuracy table. Live-only: set `AGENT_LLM_*` then `dotnet run --project ampeval`.
 
 ---
 *Requires .NET 8 SDK. The agents run offline with deterministic mock models; supply `AGENT_LLM_*` to use

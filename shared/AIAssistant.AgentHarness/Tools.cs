@@ -194,6 +194,35 @@ public static class ToolLoop
         return "(tool-step budget reached without a final answer)";
     }
 
+    /// <summary>A single plain-text completion with no tools — the "bare model" baseline, and the building
+    /// block for self-verify / escalation. Reuses AGENT_LLM_*.</summary>
+    public static async Task<string> CompleteAsync(string system, string user, double temperature = 0, CancellationToken ct = default)
+    {
+        if (!Enabled) throw new InvalidOperationException("AGENT_LLM_* not set — a live model is required.");
+        var url = Env("AGENT_LLM_BASE_URL")!.TrimEnd('/') + "/chat/completions";
+        var ver = Env("AGENT_LLM_API_VERSION");
+        if (!string.IsNullOrWhiteSpace(ver)) url += (url.Contains('?') ? "&" : "?") + "api-version=" + ver;
+        var payload = new JsonObject
+        {
+            ["model"] = Env("AGENT_LLM_MODEL") is { Length: > 0 } m ? m : "gpt-4o-mini",
+            ["temperature"] = temperature,
+            ["messages"] = new JsonArray(
+                new JsonObject { ["role"] = "system", ["content"] = system },
+                new JsonObject { ["role"] = "user", ["content"] = user }),
+        };
+        using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json") };
+        var key = Env("AGENT_LLM_API_KEY");
+        if (!string.IsNullOrWhiteSpace(key))
+        {
+            if ((Env("AGENT_LLM_AUTH") ?? "bearer").ToLowerInvariant() == "api-key") req.Headers.Add("api-key", key);
+            else req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+        }
+        using var resp = await Http.SendAsync(req, ct);
+        resp.EnsureSuccessStatusCode();
+        var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return node?["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? "";
+    }
+
     private static async Task<JsonObject> Chat(List<JsonNode> history, JsonArray toolDefs, CancellationToken ct)
     {
         var url = Env("AGENT_LLM_BASE_URL")!.TrimEnd('/') + "/chat/completions";
