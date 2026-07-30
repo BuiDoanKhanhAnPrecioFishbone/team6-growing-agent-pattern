@@ -18,6 +18,9 @@ lessons.json
 appsettings.*.local.json
 secrets.json
 
+# Local-only Figma target reference for the compare demo — the design stays off the public repo
+compare/wwwroot/target*.png
+
 # OS
 .DS_Store
 Thumbs.db

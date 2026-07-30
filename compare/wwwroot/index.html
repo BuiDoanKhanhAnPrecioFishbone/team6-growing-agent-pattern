@@ -58,6 +58,9 @@
   details summary{cursor:pointer}
   details pre{max-height:220px;overflow:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:.4rem;padding:.6rem;white-space:pre-wrap;margin:.4rem 0 0}
   .cov{font-family:var(--mono);font-size:.74rem;color:var(--dim)}
+  .target{border:1px solid color-mix(in oklab,var(--accent) 35%,var(--line));border-radius:.7rem;background:var(--panel);padding:.85rem;margin:1.4rem 0 0}
+  .target img{max-width:100%;display:block;border-radius:.4rem;background:#fff}
+  .tlabel{font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 .6rem}
   .verdict{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
   .chip{font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;padding:.2rem .6rem;border-radius:1rem;border:1px solid}
   .chip.pass{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 45%,transparent)}
@@ -92,6 +95,11 @@
   <div class="runline">
     <button class="primary" id="runBtn">Run</button>
     <span class="runs" id="runs">no runs yet</span>
+  </div>
+
+  <div class="target" id="targetPanel" style="display:none">
+    <p class="tlabel">Target design — from Figma</p>
+    <img id="targetImg" alt="Figma target design">
   </div>
 
   <div class="cols">
@@ -133,8 +141,18 @@ function renderTabs(){
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===cur));
   const dm = DOM[cur];
   $('blurb').textContent = '▹ ' + dm.blurb;
-  $('taskSel').innerHTML = dm.tasks.map((t,i)=>`<option value="${i}">${t.prompt}${t.note?'  — '+t.note:''}</option>`).join('');
+  $('taskSel').innerHTML = dm.tasks.map((t,i)=>`<option value="${i}">${t.prompt.slice(0,90)}${t.prompt.length>90?'…':''}${t.note?'  — '+t.note:''}</option>`).join('');
   clearPanels();
+  updateTarget();
+}
+// Show a Figma target reference only when a local /target.png is present (kept out of the public repo).
+function updateTarget(){
+  const p=$('targetPanel'), img=$('targetImg');
+  if(DOM[cur] && DOM[cur].key==='ui'){
+    img.onload=()=>{ p.style.display='block'; };
+    img.onerror=()=>{ p.style.display='none'; };
+    img.src='/target.png?v='+Date.now();
+  } else { p.style.display='none'; }
 }
 function clearPanels(){
   $('bareAns').className='answer placeholder'; $('bareAns').textContent='— run to compare —';
