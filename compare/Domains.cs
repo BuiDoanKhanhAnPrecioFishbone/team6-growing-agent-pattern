@@ -196,7 +196,9 @@ public sealed class UiDomain : IDomain
 {
     public string Key => "ui"; public string Title => "UI from a design";
     public string Blurb => "reward = renders complete & responsive: the harness turns a thin first draft into a full page — and learns to";
-    public string Sector => "frontend"; public bool SelfVerify => true; public int Samples => 1;
+    // Self-verify off here: the coverage reward already enforces completeness, and re-grading a full HTML
+    // page each round just adds latency. (Reasoning keeps self-verify, where soft correctness needs it.)
+    public string Sector => "frontend"; public bool SelfVerify => false; public int Samples => 1;
 
     // The spec, derived from a real Figma frame (a "Review for Candidate" card) — each element is verified
     // by keyword against the generated HTML. Structure/style only; no product-specific copy.
@@ -226,8 +228,11 @@ public sealed class UiDomain : IDomain
         + "decorative gradient blob accent. Modern, rounded, soft-shadow styling.";
 
     public IReadOnlyList<DemoTask> Tasks => new[] { new DemoTask(Brief, Array.Empty<string>(), Array.Empty<string>(), "Review-for-Candidate card (from Figma)") };
+    // Playground baseline: the NAIVE ask — no spec, no enforcement. The harness's value is that it carries
+    // the full design spec and a reward that checks it, so bare here comes out sparse/incomplete.
     public Task<string> BareAsync(DemoTask t, CancellationToken ct) =>
-        Llm.Plain("You are a front-end engineer. Build the page described. Return only the HTML.", t.Prompt, 0, ct);
+        Llm.Plain("You are a front-end engineer. Return only HTML.",
+            "Build a \"Review for Candidate\" review card as a small HTML page.", 0, ct);
     public IAgent NewAgent(DemoTask t) => new UiAgent(t);
 
     static List<string> Missing(string html)

@@ -49,7 +49,7 @@ app.MapPost("/api/compare", async (HttpRequest req) =>
     var opt = new HarnessOptions(MaxIters: 3, Threshold: 1.0, RetrieveTopK: 3, Samples: domain.Samples);
 
     // (1) bare — the playground: same task, one shot, no reward loop / memory / tools.
-    var bare = await domain.BareAsync(task, ct);
+    var bare = StripFence(await domain.BareAsync(task, ct));
     var bareR = domain.NewAgent(task).Evaluate(bare, ctx);
 
     // (2) harness — the real loop + the persistent lesson memory (shared across runs → it compounds).
@@ -62,7 +62,7 @@ app.MapPost("/api/compare", async (HttpRequest req) =>
         bare = new { answer = bare, pass = bareR.Pass, score = bareR.Score },
         harness = new
         {
-            answer = o.BestDraft ?? "", pass = o.Best.Pass, score = o.Best.Score,
+            answer = StripFence(o.BestDraft ?? ""), pass = o.Best.Pass, score = o.Best.Score,
             iterations = o.Iterations, generations = o.Generations, escalated = o.Escalated,
             injected = o.InjectedLessons, learned = o.LearnedLessons,
             critique = o.Best.Critique,
@@ -72,3 +72,15 @@ app.MapPost("/api/compare", async (HttpRequest req) =>
 
 app.Urls.Add("http://localhost:5310");
 app.Run();
+
+// Models often wrap generated code in a ```html … ``` markdown fence — strip it so the preview renders the
+// HTML itself (and the reward sees clean markup), not the literal backticks.
+static string StripFence(string s)
+{
+    s = s.Trim();
+    if (!s.StartsWith("```")) return s;
+    var nl = s.IndexOf('\n');
+    if (nl >= 0) s = s[(nl + 1)..];              // drop the opening ```lang line
+    if (s.TrimEnd().EndsWith("```")) s = s.TrimEnd()[..^3];
+    return s.Trim();
+}
