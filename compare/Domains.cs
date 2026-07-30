@@ -198,28 +198,34 @@ public sealed class UiDomain : IDomain
     public string Blurb => "reward = renders complete & responsive: the harness turns a thin first draft into a full page — and learns to";
     public string Sector => "frontend"; public bool SelfVerify => true; public int Samples => 1;
 
-    // The spec, as if pulled from a Figma frame — each section is verified by keyword against the HTML.
+    // The spec, derived from a real Figma frame (a "Review for Candidate" card) — each element is verified
+    // by keyword against the generated HTML. Structure/style only; no product-specific copy.
     static readonly (string Label, string[] Kw)[] Spec =
     {
-        ("top nav",          new[]{"<nav","navbar","<header"}),
-        ("hero headline",    new[]{"<h1"}),
-        ("Starter tier",     new[]{"starter"}),
-        ("Pro tier",         new[]{">pro","pro<","pro "}),
-        ("Enterprise tier",  new[]{"enterprise"}),
-        ("prices",           new[]{"/mo","per month","$"}),
-        ("CTA buttons",      new[]{"<button","get started","sign up","start free","try "}),
-        ("FAQ section",      new[]{"faq","frequently asked","question"}),
-        ("footer",           new[]{"<footer","copyright","©","&copy;"}),
-        ("responsive CSS",   new[]{"@media"}),
-        ("inline styling",   new[]{"<style","style="}),
+        ("card title",          new[]{"review for candidate"}),
+        ("header icon",         new[]{"💬","<svg","icon"}),
+        ("5-star rating",       new[]{"star","★","☆","rating"}),
+        ("review textarea",     new[]{"<textarea"}),
+        ("placeholder text",    new[]{"placeholder"}),
+        ("Rewrite-with-AI btn", new[]{"rewrite with ai","rewrite"}),
+        ("Save button",         new[]{"save"}),
+        ("violet theme",        new[]{"violet","indigo","purple","#6","#7","#8"}),
+        ("rounded corners",     new[]{"border-radius"}),
+        ("soft shadow",         new[]{"box-shadow"}),
+        ("responsive CSS",      new[]{"@media"}),
+        ("inline styling",      new[]{"<style","style="}),
     };
     const string Brief =
-        "Build a modern, responsive pricing page for a SaaS product called \"Ledgerly\" (a bookkeeping tool). "
-        + "Include a top navigation bar; a hero with a headline and subtext; three pricing tiers — Starter, Pro, "
-        + "Enterprise — each with a monthly price and a call-to-action button; a short FAQ section; and a footer. "
-        + "Return ONE complete, self-contained HTML document with inline <style> CSS.";
+        "Build a \"Review for Candidate\" card as ONE complete, self-contained, responsive HTML document with "
+        + "inline <style> CSS. Layout: a header row with a small speech-bubble icon and the title "
+        + "\"Review for Candidate\" in a violet/indigo accent; a white card with rounded corners (~16px) and a "
+        + "soft drop shadow on a light lavender page background; a 5-star rating control; a large textarea with "
+        + "the placeholder \"Write your review for this candidate — strengths, concerns, and a hiring "
+        + "recommendation…\"; and a bottom row with two buttons aligned right: a \"Rewrite with AI\" button "
+        + "(outlined violet, with a ✨ icon) and a primary \"Save\" button (solid violet). Add a subtle "
+        + "decorative gradient blob accent. Modern, rounded, soft-shadow styling.";
 
-    public IReadOnlyList<DemoTask> Tasks => new[] { new DemoTask(Brief, Array.Empty<string>(), Array.Empty<string>(), "SaaS pricing page") };
+    public IReadOnlyList<DemoTask> Tasks => new[] { new DemoTask(Brief, Array.Empty<string>(), Array.Empty<string>(), "Review-for-Candidate card (from Figma)") };
     public Task<string> BareAsync(DemoTask t, CancellationToken ct) =>
         Llm.Plain("You are a front-end engineer. Build the page described. Return only the HTML.", t.Prompt, 0, ct);
     public IAgent NewAgent(DemoTask t) => new UiAgent(t);
@@ -250,8 +256,8 @@ public sealed class UiDomain : IDomain
         public Lesson? LessonFor(string trigger, AgentContext ctx) => new Lesson
         {
             Id = "cmp-ui|frontend|INCOMPLETE_UI", Agent = "cmp-ui", Sector = "frontend", Trigger = "INCOMPLETE_UI",
-            Condition = "generating a full page from a design brief",
-            Warning = "Build the COMPLETE page: every requested section (nav, hero, all three pricing tiers, CTAs, FAQ, footer) plus responsive @media CSS and inline <style>. Never return a partial page.",
+            Condition = "reproducing a component from a design brief",
+            Warning = "Reproduce EVERY element of the card: the titled header with its icon, the 5-star rating, the review textarea with its placeholder, BOTH buttons (Rewrite with AI + Save), the violet theme, rounded corners, a soft shadow, a decorative accent, and responsive @media CSS. Never return a partial card.",
         };
     }
 }
