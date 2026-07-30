@@ -139,17 +139,18 @@ self-refinement — behind the same `ILessonStore` seam, so agents don't change.
   (`AGENT_MEMORY_HALFLIFE_DAYS`), evicts the least-valuable over a per-agent cap (`AGENT_MEMORY_CAP`), and
   demotes a Verified rule that gets re-learned with conflicting guidance (+ optional LLM contradiction check).
   All off by default. Verified by `memlife/` (`dotnet run --project memlife` — 7 deterministic checks).
-- **Tools** (`Tools.cs`): agents call `web_search` (keyless Wikipedia), `memory_search` (their own memory)
-  and deterministic compute tools via a function-calling loop — read-only tools run free, mutating ones gate.
-  `McpToolSource` is the MCP seam.
+- **Tools** (`Tools.cs`, `Mcp.cs`): agents call `web_search` (keyless Wikipedia), `memory_search` (their own
+  memory), deterministic compute tools, **and any MCP server's tools** — `McpToolSource` is a real MCP client
+  (stdio JSON-RPC: connect → `tools/list` → each wrapped as a gated `ITool`). All run in one function-calling
+  loop; read-only tools run free, mutating ones gate. Verified live by `mcptest/`.
 - **Measured A/B** (`abeval/`): as memory fills with noise, exact-match retrieval collapses toward 0 while
   semantic + recall holds 0.67–1.0. `memtest/` and `tooltest/` verify recall/refine and the tool loop.
 - **Second domain / real reward** (`codeagent/`): a code agent whose reward is *unit tests pass* (run in a
   Python subprocess). With learned memory it solves **80% of problems first-try vs 0% without** — real
   end-to-end learning on a deterministic reward, proving the harness is domain-agnostic. Run: `dotnet run --project codeagent`.
 - **Status:** D1–2 store · D3–4 recall + two-phase · D5 refine + injection defense · D6–7 A/B chart ·
-  D8–10 tool loop + `memory_search` + MCP seam · **memory lifecycle (decay + eviction + conflict)** — all
-  done. Remaining: full MCP transport.
+  D8–10 tool loop + `memory_search` · **real MCP transport (stdio)** · **memory lifecycle (decay + eviction +
+  conflict)** · **context management** — all done. 🎉
 
 ## The amplifier — a cheap model, frontier-ish quality
 

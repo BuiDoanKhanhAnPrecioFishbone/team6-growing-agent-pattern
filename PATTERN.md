@@ -117,9 +117,11 @@ fixed, and **what each agent extends**.
   - **Best-of-N** *(built in — `HarnessOptions.Samples` / `AGENT_SAMPLES`)*: the loop draws N independent
     drafts per round and keeps the one the **reward** scores highest. A cheap model has a wide quality
     spread; sampling several and selecting is the single biggest lift. `Samples=1` is the plain loop.
-  - **Tool grounding** *(`Tools.cs`)*: let the model look facts up instead of guessing — `WebSearchTool`
-    (keyless Wikipedia backend by default) and `memory_search` run in the read-only-free / mutating-gated
-    `ToolLoop`. Grounding is the antidote to a cheap model's #1 failure, hallucination.
+  - **Tool grounding** *(`Tools.cs`, `Mcp.cs`)*: let the model look facts up instead of guessing —
+    `WebSearchTool` (keyless Wikipedia) and `memory_search` run in the read-only-free / mutating-gated
+    `ToolLoop`. Grounding is the antidote to a cheap model's #1 failure, hallucination. **Any MCP server**
+    plugs in via `McpToolSource` (real stdio JSON-RPC client) — its tools are wrapped as gated `ITool`s with
+    no harness change, so an operator can add filesystem/git/database/internal-API tools per deployment.
   - **Self-verify** *(built in — `AGENT_SELF_VERIFY=1`)*: an LLM critic (`LlmCritic`) reviews each round's
     best draft and can demand another revision for soft errors the deterministic reward can't encode. The
     reward still owns scoring and selection — the critic only enriches the fix-list, within the same budget.

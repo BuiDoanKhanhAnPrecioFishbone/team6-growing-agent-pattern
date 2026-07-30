@@ -157,15 +157,8 @@ public sealed class LlmCritic : ICritic
     }
 }
 
-/// <summary>MCP seam (Claude Code Ch 15) — connects an MCP server and wraps its tools as <see cref="ITool"/>.
-/// Transport/OAuth is the documented fast-follow; MCP tools default to gated (ReadOnly=false) until the
-/// operator marks them safe.</summary>
-public sealed class McpToolSource : IToolSource
-{
-    public McpToolSource(string endpoint) => Endpoint = endpoint;
-    public string Endpoint { get; }
-    public IReadOnlyList<ITool> Tools => Array.Empty<ITool>(); // TODO: connect, list_tools, wrap each as ITool (gated)
-}
+// McpToolSource + the MCP client live in Mcp.cs — a real stdio JSON-RPC client that connects to an MCP
+// server, lists its tools, and wraps each as a gated ITool.
 
 /// <summary>
 /// The tool-use loop (OpenAI function-calling, adopted from Claude Code Ch 6-7). The model may call the
