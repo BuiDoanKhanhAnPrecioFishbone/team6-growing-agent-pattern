@@ -15,13 +15,46 @@ public sealed class SemanticLessonStore : ILessonStore
     private readonly List<Lesson> _lessons;
     private readonly IEmbedder _embedder;
     private readonly int _shortlist;
+    private readonly int _cap;          // max lessons per agent before eviction (0 = unbounded)
+    private readonly int _halfLife;     // retrieval decay half-life in days (0 = no decay)
+    private readonly Func<DateTime> _now;
 
-    public SemanticLessonStore(string path, IEmbedder? embedder = null, int shortlist = 12)
+    public SemanticLessonStore(string path, IEmbedder? embedder = null, int shortlist = 12,
+                               int cap = -1, int halfLifeDays = -1, Func<DateTime>? nowUtc = null)
     {
         _path = path;
         _embedder = embedder ?? Embeddings.FromEnvironment();
         _shortlist = shortlist;
+        // Lifecycle knobs default OFF (env, else unbounded / no decay) so the store stays drop-in.
+        _cap = cap >= 0 ? cap : EnvInt("AGENT_MEMORY_CAP", 0);
+        _halfLife = halfLifeDays >= 0 ? halfLifeDays : EnvInt("AGENT_MEMORY_HALFLIFE_DAYS", 0);
+        _now = nowUtc ?? (() => DateTime.UtcNow);
         _lessons = Load(path);
+    }
+
+    private static int EnvInt(string k, int d) => int.TryParse(Environment.GetEnvironmentVariable(k), out var v) ? v : d;
+
+    // ── lifecycle helpers: a memory that only appends eventually rots — decay it, cap it, curate it. ──
+    private double AgeDays(Lesson l)
+    {
+        var stamp = string.IsNullOrWhiteSpace(l.LastUsed) ? l.Date : l.LastUsed;
+        return DateTime.TryParse(stamp, out var d) ? Math.Max(0, (_now() - d).TotalDays) : 0;
+    }
+    // Retrieval weight: recent + trusted lessons rank above stale/provisional ones (only when decay is on).
+    private double RecencyWeight(Lesson l) => _halfLife <= 0 ? 1.0 : Math.Max(0.25, Math.Pow(0.5, AgeDays(l) / _halfLife));
+    private static double TrustWeight(Lesson l) => l.Trust == Trust.Verified ? 1.0 : 0.85;
+    // Eviction value: what a lesson is "worth" — trust + proven usefulness − staleness. Lowest goes first.
+    private static double TrustBase(Trust t) => t == Trust.Verified ? 2.0 : t == Trust.Provisional ? 0.5 : -1.0;
+    private double EvictValue(Lesson l) => TrustBase(l.Trust) + l.HitRate - (1.0 - RecencyWeight(l));
+
+    private void EvictOverCap(string agent)
+    {
+        if (_cap <= 0) return;
+        var forAgent = _lessons.Where(l => l.Agent == agent).ToList();
+        if (forAgent.Count <= _cap) return;
+        // drop the least valuable (junk/quarantined + stale provisional) until back at the cap
+        foreach (var l in forAgent.OrderBy(EvictValue).Take(forAgent.Count - _cap).ToList())
+            _lessons.Remove(l);
     }
 
     public async Task<IReadOnlyList<Lesson>> RetrieveAsync(string agent, AgentFeatures features, int topK, CancellationToken ct = default)
@@ -40,10 +73,12 @@ public sealed class SemanticLessonStore : ILessonStore
         if (string.IsNullOrWhiteSpace(features.Situation))
             return candidates.OrderByDescending(l => l.HitRate).ThenByDescending(l => l.Date).Take(topK).ToList();
 
-        // Step 2 — vector shortlist: cosine of the situation against each lesson's embedding.
+        // Step 2 — vector shortlist: cosine of the situation against each lesson's embedding, folding in
+        // decay + trust when lifecycle is on (a stale or provisional lesson ranks below a fresh verified one).
         var q = await _embedder.EmbedAsync(features.Situation, ct);
         var shortlisted = candidates
-            .Select(l => (l, score: l.Embedding.Length > 0 ? Vec.Cosine(q, l.Embedding) : 0))
+            .Select(l => (l, score: (l.Embedding.Length > 0 ? Vec.Cosine(q, l.Embedding) : 0)
+                                    * (_halfLife > 0 ? RecencyWeight(l) * TrustWeight(l) : 1.0)))
             .OrderByDescending(x => x.score).ThenByDescending(x => x.l.HitRate)
             .Take(Math.Max(topK, _shortlist))
             .Select(x => x.l)
@@ -65,8 +100,9 @@ public sealed class SemanticLessonStore : ILessonStore
         return picked.Count > 0 ? picked : shortlisted.Take(topK).ToList();
     }
 
-    private const double DedupTheta = 0.92; // near-duplicate → merge instead of piling up
-    private const int PromoteAfter = 2;     // provisional → verified after this many helpful applications
+    private const double DedupTheta = 0.92;    // near-duplicate → merge instead of piling up
+    private const double ConflictTheta = 0.60; // same-id guidance below this similarity ⇒ the rule changed (a conflict)
+    private const int PromoteAfter = 2;        // provisional → verified after this many helpful applications
     private static readonly string[] InjectionMarkers =
     {
         "ignore previous", "ignore all previous", "disregard your", "disregard the above", "system:", "assistant:",
@@ -95,14 +131,42 @@ public sealed class SemanticLessonStore : ILessonStore
             lesson.Embedding = await _embedder.EmbedAsync(basis, ct);
         }
 
+        // Optional semantic conflict flag (inert offline): if this new rule contradicts an existing VERIFIED
+        // one, note it on provenance for human review — non-destructive, awaited outside the lock.
+        if (Conflict.Enabled && lesson.Trust != Trust.Quarantined && lesson.Embedding.Length > 0)
+        {
+            List<(string Id, string Text, float[] Emb)> verified;
+            lock (_lock)
+                verified = _lessons
+                    .Where(l => l.Agent == lesson.Agent && l.Id != lesson.Id && l.Trust == Trust.Verified && l.Embedding.Length > 0)
+                    .Select(l => (l.Id, $"WHEN {l.Condition}: {l.Warning}", l.Embedding)).ToList();
+            var band = verified
+                .Where(n => { var c = Vec.Cosine(n.Emb, lesson.Embedding); return c >= ConflictTheta && c < DedupTheta; })
+                .Select(n => (n.Id, n.Text)).ToList();
+            var conflictId = await Conflict.ContradictsAsync($"WHEN {lesson.Condition}: {lesson.Warning}", band, ct);
+            if (!string.IsNullOrEmpty(conflictId))
+                lesson.LearnedFrom = $"{lesson.LearnedFrom} (possible conflict with {conflictId} — review)".Trim();
+        }
+
         lock (_lock)
         {
-            // exact upsert by id — re-learning refreshes text, keeps stats & trust
+            // exact upsert by id — re-learning refreshes text, keeps stats & trust…
             var existing = _lessons.FirstOrDefault(l => l.Id == lesson.Id);
             if (existing is not null)
             {
+                // …unless the guidance for the SAME trigger materially changed (a conflict / rule flip):
+                // don't let the new rule inherit Verified trust — demote to Provisional and reset stats so
+                // it must re-earn its place. This is how the memory self-corrects instead of trusting stale.
+                var diverged = existing.Embedding.Length > 0 && lesson.Embedding.Length > 0
+                               && Vec.Cosine(existing.Embedding, lesson.Embedding) < ConflictTheta;
                 existing.Warning = lesson.Warning; existing.Condition = lesson.Condition; existing.Type = lesson.Type;
-                existing.Embedding = lesson.Embedding; existing.LearnedFrom = lesson.LearnedFrom; existing.Date = lesson.Date;
+                existing.Embedding = lesson.Embedding; existing.Date = lesson.Date;
+                if (diverged && existing.Trust != Trust.Quarantined)
+                {
+                    existing.Trust = Trust.Provisional; existing.TimesApplied = 0; existing.TimesHelped = 0; existing.HitRate = 0;
+                    existing.LearnedFrom = lesson.LearnedFrom + " (superseded a conflicting prior rule)";
+                }
+                else existing.LearnedFrom = lesson.LearnedFrom;
                 Save(); return;
             }
             // 3. dedup/merge — a near-duplicate of an existing (non-quarantined) lesson refreshes it instead of piling up
@@ -116,8 +180,9 @@ public sealed class SemanticLessonStore : ILessonStore
                     Save(); return; // merged
                 }
             }
-            // 4. conflict-check (light, TODO): flag semantically-opposite Verified lessons for human resolution.
+            // 4. new lesson — add, then evict if this agent is now over its memory cap (bounded memory)
             _lessons.Add(lesson);
+            EvictOverCap(lesson.Agent);
             Save();
         }
     }

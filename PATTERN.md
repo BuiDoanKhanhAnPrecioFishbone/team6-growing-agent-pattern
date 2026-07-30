@@ -181,6 +181,24 @@ Lesson.Id = "{agent}|{sector}|{trigger}"                            ┐  Tier 2:
 Because `LessonStore`'s three methods are the only contract, moving from JSON → Cosmos is a store swap, not
 a rewrite: no agent code and no loop code changes.
 
+### Lifecycle — the memory curates itself
+
+A growing agent's memory can't only append, or it rots: stale and contradicting lessons crowd out the good
+ones. `SemanticLessonStore` curates on every write/read (all knobs default **off**, so it stays drop-in):
+
+- **Decay** *(`AGENT_MEMORY_HALFLIFE_DAYS`)*: retrieval folds recency + trust into the vector score, so a
+  stale or provisional lesson ranks below a fresh, verified one — the memory forgets gracefully.
+- **Capacity + eviction** *(`AGENT_MEMORY_CAP`)*: cap lessons per agent; over the cap the least valuable go
+  first (quarantined/junk, then stale provisional). Bounded memory, best lessons kept.
+- **Conflict handling**: re-learning the *same trigger* with materially different guidance (cosine < 0.60)
+  demotes the rule Verified → Provisional and resets its stats — a flipped rule must re-earn trust instead of
+  riding on old credit. An optional LLM check (`Conflict`, inert offline) flags cross-lesson contradictions
+  for human review.
+- **(already there)** near-duplicates **merge** (cosine ≥ 0.92); Provisional **promotes** to Verified on
+  hit-rate or a human gate; injection-suspicious lessons are **Quarantined** and never injected.
+
+Verified deterministically by `memlife/` (eviction, conflict-demotion, dedup — offline, fixed clock).
+
 **How an agent's slice relates to the whole:** an agent's lessons are one labeled partition of the platform
 graph. The *domain* nodes it produces (its evaluations, its output block) feed the **shared** Tier-1 graph;
 its *lessons* stay in its **own** Tier-2 partition. That separation is why six agents can learn in parallel

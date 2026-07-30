@@ -135,6 +135,10 @@ self-refinement — behind the same `ILessonStore` seam, so agents don't change.
 - **Self-refining writes** (`SemanticLessonStore`): learned lessons start `Provisional` and promote to
   `Verified` on hit-rate or a human gate; injection-validated (suspicious → `Quarantined`, never injected);
   near-duplicates merge instead of piling up.
+- **Self-curating lifecycle** (`SemanticLessonStore`): the memory decays stale lessons in ranking
+  (`AGENT_MEMORY_HALFLIFE_DAYS`), evicts the least-valuable over a per-agent cap (`AGENT_MEMORY_CAP`), and
+  demotes a Verified rule that gets re-learned with conflicting guidance (+ optional LLM contradiction check).
+  All off by default. Verified by `memlife/` (`dotnet run --project memlife` — 7 deterministic checks).
 - **Tools** (`Tools.cs`): agents call `web_search` (keyless Wikipedia), `memory_search` (their own memory)
   and deterministic compute tools via a function-calling loop — read-only tools run free, mutating ones gate.
   `McpToolSource` is the MCP seam.
@@ -144,7 +148,8 @@ self-refinement — behind the same `ILessonStore` seam, so agents don't change.
   Python subprocess). With learned memory it solves **80% of problems first-try vs 0% without** — real
   end-to-end learning on a deterministic reward, proving the harness is domain-agnostic. Run: `dotnet run --project codeagent`.
 - **Status:** D1–2 store · D3–4 recall + two-phase · D5 refine + injection defense · D6–7 A/B chart ·
-  D8–10 tool loop + `memory_search` + MCP seam — **all done**. Remaining: robust conflict-check + full MCP transport.
+  D8–10 tool loop + `memory_search` + MCP seam · **memory lifecycle (decay + eviction + conflict)** — all
+  done. Remaining: full MCP transport.
 
 ## The amplifier — a cheap model, frontier-ish quality
 
