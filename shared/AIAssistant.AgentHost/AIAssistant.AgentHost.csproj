@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <RootNamespace>AIAssistant.AgentHost</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>team6</Authors>
+    <Description>One-line HTTP host + authoring helpers for Growing-Agent agents (Host.Run, Kit, the model client).</Description>
+    <PackageTags>agents;llm;host;aspnetcore</PackageTags>
   </PropertyGroup>
 
   <!-- Shared web host + agent-authoring helpers, so each agent project is ~3 files. An ASP.NET class

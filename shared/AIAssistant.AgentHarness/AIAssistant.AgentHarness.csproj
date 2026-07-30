@@ -6,6 +6,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <RootNamespace>AIAssistant.Harness</RootNamespace>
+    <!-- NuGet packaging so other repos can consume the harness (dotnet pack). -->
+    <Version>0.1.0</Version>
+    <Authors>team6</Authors>
+    <Description>The Growing-Agent harness: fast loop + reward contract + self-refining semantic lesson memory (IAgent, AgentHarness, ILessonStore, embeddings + LLM recall + tools).</Description>
+    <PackageTags>agents;llm;memory;harness;azure-openai</PackageTags>
   </PropertyGroup>
 
   <!--

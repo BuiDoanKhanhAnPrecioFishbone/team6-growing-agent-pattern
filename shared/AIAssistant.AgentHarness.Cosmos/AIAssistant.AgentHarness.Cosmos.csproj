@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <RootNamespace>AIAssistant.Harness.Cosmos</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>team6</Authors>
+    <Description>Azure Cosmos DB backing for the Growing-Agent lesson memory (partition key /agent).</Description>
+    <PackageTags>agents;memory;cosmos;azure</PackageTags>
   </PropertyGroup>
 
   <!-- The Azure-native backing for ILessonStore. Referenced only by agents deployed to the cloud;

@@ -100,6 +100,10 @@ dotnet run --project sN
 
 See `PATTERN.md §7–§10` for the contract, the five design decisions, and the checklist.
 
+**Building agents in a *separate* repo?** The harness ships as NuGet packages (`./pack.ps1`) so another
+repo can consume it — see [`docs/START-A-NEW-REPO.md`](docs/START-A-NEW-REPO.md) for the NuGet and
+vendor paths, and how teammates stay on one shared harness version.
+
 **Using an AI coding agent (Claude Code / Codex)?** Invoke the **`build-growing-agent`** skill
 (`.claude/skills/build-growing-agent/`) — it walks the coding agent through the same pattern and guardrails,
 so new agents come out consistent every time. It's the *executable* form of `PATTERN.md`.

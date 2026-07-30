@@ -1,6 +1,8 @@
 # .NET build output
 bin/
 obj/
+artifacts/
+*.nupkg
 [Dd]ebug/
 [Rr]elease/
 
