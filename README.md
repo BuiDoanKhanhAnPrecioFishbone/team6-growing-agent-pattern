@@ -26,6 +26,7 @@ shared/
 s1-screen/  s2-moat/  s3-financials/  s4-valuation/  s5-allocate/  s6-monitor/
                                      the SIX agents — each its own runnable service (ports 5301–5306)
 orchestrator/                        runs S1→S6 over one candidate file, auto-confirming the 4 human gates
+compare/                             DEMO — same model, bare (playground) vs harness, side by side, any domain
 _template/                           COPY ME to build a new agent IN THIS REPO — implement three methods
 pack.ps1                             pack the harness as NuGet, to build agents in a SEPARATE repo
 .claude/skills/build-growing-agent/  the pattern as a skill — coding agents (Claude Code / Codex) follow it
@@ -99,6 +100,30 @@ and lets you **evaluate & teach** — reject an agent's output and state the rul
 feedback becomes a lesson the agent applies on the next run (and the ART training corpus later). Reset
 memory and re-run to watch the whole pipeline compound. The header shows **● LIVE · &lt;model&gt;** when a
 Foundry endpoint is configured, or **○ mock (offline)** otherwise.
+
+## The demo — harness vs the playground
+
+The single screen that makes the case, across **any** domain:
+
+```bash
+# set AGENT_LLM_* to your Foundry gpt-4.1-mini first (this demo is live)
+dotnet run --project compare          # → http://localhost:5310
+```
+
+Same model on both sides. **Left** is one raw completion — exactly the Foundry playground. **Right** runs
+that *same model* through the real harness: a reward-gated loop with a growing memory. Pick a domain
+(**Factual QA · General reasoning · Value-investing**), hit **Run**, then **Run again** to watch the harness
+side compound while the playground stays flat:
+
+- **Factual QA** — bare answers from stale memory (*"Warren Buffett"*); the harness's reward fails it, it
+  **learns to call `web_search`**, answers *"Greg Abel"* — and recalls that lesson first-try next run.
+- **General reasoning** — bare rushes a trick question wrong; **best-of-N + self-verify** work it correctly.
+- **Value-investing** — bare drops a citation; the grounding gate catches it and it **learns to cite only
+  provided sources**.
+
+To keep it honest, "bare" is the harness's *own* first draft with the loop and memory switched off — the
+only variable is the harness. A one-page overview of all results lives at
+[`docs/harness-results.html`](docs/harness-results.html).
 
 ## The six agents
 

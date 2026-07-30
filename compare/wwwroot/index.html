@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness vs Playground — same cheap model</title>
+<style>
+  :root{
+    --ink:#0a1310; --panel:#0e1814; --panel-2:#0c1512; --line:#1d2c25;
+    --fg:#cfdad2; --dim:#8ba095; --faint:#5f7268;
+    --accent:#3ddc97; --bad:#e2726a; --warn:#d7a24e;
+    --mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:light){:root{
+    --ink:#f2f5f1;--panel:#fff;--panel-2:#f7faf7;--line:#dde6df;--fg:#132019;--dim:#516158;--faint:#7d8d83;
+    --accent:#0f7a54;--bad:#b0473e;--warn:#96702a;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--fg);font-family:var(--sans);line-height:1.55}
+  .wrap{max-width:70rem;margin:0 auto;padding:clamp(1rem,3vw,2rem)}
+  a{color:var(--accent)}
+  h1{font-family:var(--mono);font-weight:600;font-size:clamp(1.3rem,3vw,1.9rem);margin:0;letter-spacing:-.01em}
+  h1 .hl{color:var(--accent)}
+  .sub{color:var(--dim);margin:.5rem 0 0;max-width:60ch}
+  .eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 .6rem}
+
+  .bar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:1.3rem 0 0}
+  .badge{font-family:var(--mono);font-size:.74rem;border:1px solid var(--line);border-radius:1rem;padding:.28rem .7rem;color:var(--dim)}
+  .badge b{color:var(--accent)}
+  .dot{width:.5rem;height:.5rem;border-radius:50%;display:inline-block;margin-right:.4rem;vertical-align:middle}
+  .dot.on{background:var(--accent)} .dot.off{background:var(--warn)}
+  button{font-family:var(--sans);cursor:pointer;border-radius:.5rem;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:.5rem .9rem;font-size:.86rem}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#04140d;border-color:var(--accent);font-weight:600}
+  button:disabled{opacity:.5;cursor:default}
+  .spacer{flex:1}
+
+  .tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin:1.4rem 0 0}
+  .tab{font-family:var(--mono);font-size:.82rem;padding:.4rem .8rem;border:1px solid var(--line);border-radius:.5rem;background:var(--panel);color:var(--dim)}
+  .tab.active{color:var(--accent);border-color:var(--accent)}
+  .taskrow{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:1rem 0 0}
+  select{font-family:var(--sans);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;font-size:.86rem;max-width:100%}
+  .blurb{color:var(--dim);font-size:.88rem;margin:.7rem 0 0}
+  .runline{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin:1.1rem 0 0}
+  .runs{font-family:var(--mono);font-size:.8rem;color:var(--faint)}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.4rem 0 0}
+  @media (max-width:44rem){.cols{grid-template-columns:1fr}}
+  .col{border:1px solid var(--line);border-radius:.7rem;background:var(--panel);overflow:hidden;display:flex;flex-direction:column}
+  .col.harness{border-color:color-mix(in oklab,var(--accent) 40%,var(--line))}
+  .col h2{margin:0;font-size:.95rem;padding:.85rem 1rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.5rem}
+  .col h2 .k{font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border:1px solid var(--line);border-radius:1rem;padding:.1rem .5rem}
+  .body{padding:1rem;flex:1;display:flex;flex-direction:column;gap:.8rem}
+  .answer{font-size:.92rem;white-space:pre-wrap;min-height:3.2rem}
+  .answer.placeholder{color:var(--faint)}
+  .verdict{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+  .chip{font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;padding:.2rem .6rem;border-radius:1rem;border:1px solid}
+  .chip.pass{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 45%,transparent)}
+  .chip.fail{color:var(--bad);border-color:color-mix(in oklab,var(--bad) 45%,transparent)}
+  .meta{font-family:var(--mono);font-size:.76rem;color:var(--dim);display:flex;flex-wrap:wrap;gap:.3rem 1rem;border-top:1px solid var(--line);padding-top:.7rem;margin-top:auto}
+  .meta b{color:var(--fg)}
+  .learn{font-size:.8rem;color:var(--dim);border-left:2px solid var(--accent);padding-left:.7rem}
+  .learn .l{color:var(--accent);font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase}
+  footer{margin-top:2rem;color:var(--faint);font-family:var(--mono);font-size:.76rem;border-top:1px solid var(--line);padding-top:1rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">team6 · growing-agent harness</p>
+  <h1>Same cheap model. <span class="hl">One has a harness.</span></h1>
+  <p class="sub">Left is a single completion — what you'd get typing into the Foundry playground. Right runs the
+    <b>same model</b> through the harness: a reward-gated loop with a memory that grows. Hit <b>Run again</b> to
+    watch the harness side compound while the playground stays flat.</p>
+
+  <div class="bar">
+    <span class="badge" id="modelBadge"><span class="dot off"></span> loading…</span>
+    <span class="spacer"></span>
+    <button id="resetBtn" title="wipe the harness's learned memory">Reset memory</button>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="taskrow">
+    <select id="taskSel"></select>
+  </div>
+  <p class="blurb" id="blurb"></p>
+
+  <div class="runline">
+    <button class="primary" id="runBtn">Run</button>
+    <span class="runs" id="runs">no runs yet</span>
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <h2>Foundry playground <span class="k">bare · no memory</span></h2>
+      <div class="body">
+        <div class="answer placeholder" id="bareAns">— run to compare —</div>
+        <div class="verdict" id="bareVerdict"></div>
+        <div class="meta" id="bareMeta"></div>
+      </div>
+    </div>
+    <div class="col harness">
+      <h2>Growing-agent harness <span class="k">reward + memory</span></h2>
+      <div class="body">
+        <div class="answer placeholder" id="harnAns">— run to compare —</div>
+        <div class="verdict" id="harnVerdict"></div>
+        <div class="learn" id="harnLearn" style="display:none"></div>
+        <div class="meta" id="harnMeta"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>gpt-4.1-mini · Azure AI Foundry · the harness is off-the-shelf; only the reward changes per domain</footer>
+</div>
+
+<script>
+let DOM = [], cur = 0, runCount = 0;
+const $ = id => document.getElementById(id);
+
+async function load(){
+  const d = await (await fetch('/api/domains')).json();
+  DOM = d.domains;
+  $('modelBadge').innerHTML = `<span class="dot ${d.live?'on':'off'}"></span> same model: <b>${d.model}</b>` + (d.live?'':' · offline mock (set AGENT_LLM_*)');
+  $('tabs').innerHTML = DOM.map((x,i)=>`<span class="tab ${i===0?'active':''}" data-i="${i}">${x.title}</span>`).join('');
+  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{cur=+t.dataset.i;renderTabs();});
+  renderTabs();
+}
+function renderTabs(){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===cur));
+  const dm = DOM[cur];
+  $('blurb').textContent = '▹ ' + dm.blurb;
+  $('taskSel').innerHTML = dm.tasks.map((t,i)=>`<option value="${i}">${t.prompt}${t.note?'  — '+t.note:''}</option>`).join('');
+  clearPanels();
+}
+function clearPanels(){
+  $('bareAns').className='answer placeholder'; $('bareAns').textContent='— run to compare —';
+  $('harnAns').className='answer placeholder'; $('harnAns').textContent='— run to compare —';
+  $('bareVerdict').innerHTML=''; $('harnVerdict').innerHTML='';
+  $('bareMeta').innerHTML=''; $('harnMeta').innerHTML=''; $('harnLearn').style.display='none';
+}
+function chip(pass){ return `<span class="chip ${pass?'pass':'fail'}">${pass?'correct ✓':'wrong ✗'}</span>`; }
+
+async function run(){
+  $('runBtn').disabled=true; $('runBtn').textContent='Running…';
+  try{
+    const r = await (await fetch('/api/compare',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({domain:DOM[cur].key, task:+$('taskSel').value})})).json();
+    runCount++;
+    $('runs').textContent = `run #${runCount} on this memory · Run again to reuse what the harness learned`;
+
+    $('bareAns').className='answer'; $('bareAns').textContent = r.bare.answer || '(no answer)';
+    $('bareVerdict').innerHTML = chip(r.bare.pass);
+    $('bareMeta').innerHTML = `<span>1 model call</span><span>no memory · nothing carries to the next run</span>`;
+
+    $('harnAns').className='answer'; $('harnAns').textContent = r.harness.answer || '(no answer)';
+    $('harnVerdict').innerHTML = chip(r.harness.pass) + (r.harness.escalated?'<span class="chip">escalated</span>':'');
+    const used = r.harness.injected.length, learned = r.harness.learned.length;
+    let ln='';
+    if(learned) ln = `<span class="l">learned</span> a lesson this run — it will apply next time`;
+    else if(used) ln = `<span class="l">recalled</span> ${used} lesson${used>1?'s':''} — applied first try`;
+    if(ln){ $('harnLearn').style.display='block'; $('harnLearn').innerHTML=ln; } else $('harnLearn').style.display='none';
+    $('harnMeta').innerHTML = `<span><b>${r.harness.iterations}</b> iteration${r.harness.iterations>1?'s':''}</span>`
+      + `<span><b>${r.harness.generations}</b> model call${r.harness.generations>1?'s':''}</span>`
+      + `<span>recalled <b>${used}</b> · learned <b>${learned}</b></span>`;
+  }catch(e){ $('harnAns').className='answer'; $('harnAns').textContent='error: '+e.message; }
+  finally{ $('runBtn').disabled=false; $('runBtn').textContent='Run again'; }
+}
+
+$('runBtn').onclick=run;
+$('resetBtn').onclick=async()=>{ await fetch('/api/reset',{method:'POST'}); runCount=0; $('runs').textContent='memory wiped · fresh start'; clearPanels(); };
+load();
+</script>
+</body>
+</html>
