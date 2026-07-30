@@ -171,6 +171,20 @@ Every lever is off by default and inert without a live model, so the offline pip
 **Proof** (`ampeval/`): the same cheap model answers a factual suite twice — bare, then +`web_search` —
 printing an accuracy table. Live-only: set `AGENT_LLM_*` then `dotnet run --project ampeval`.
 
+## Context management — bounded long sessions
+
+Two timescales of memory. The lesson store is **long-term** (facts kept across runs); a long *session* also
+has **short-term** memory — the conversation and tool output the model holds at once, which overflows the
+window and runs up cost if left unmanaged. `Context` (+ `ContextBudget`, on via `AGENT_CONTEXT_TOKENS`)
+compacts it the way Claude Code does — recent detail sharp, older detail gist:
+
+- **`Context.FitAsync`** — compact a conversation to a token budget (keep system + last *N* turns; fold the
+  rest into one summary — LLM if configured, deterministic digest offline).
+- **`Context.CompactToolHistory`** — bound a live tool-loop history in place, trimming the oldest tool
+  results while keeping tool-call pairing intact. Wired into `ToolLoop`.
+
+Off by default. Verified by `ctxtest/` (`dotnet run --project ctxtest` — 11 deterministic checks).
+
 ---
 *Requires .NET 8 SDK. The agents run offline with deterministic mock models; supply `AGENT_LLM_*` to use
 a real model. No secrets are stored in this repo.*

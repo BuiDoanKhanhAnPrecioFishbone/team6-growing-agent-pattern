@@ -184,6 +184,7 @@ public static class ToolLoop
         int maxSteps = 5, CancellationToken ct = default)
     {
         if (!Enabled) throw new InvalidOperationException("AGENT_LLM_* not set — the tool loop needs a live model.");
+        var budget = ContextBudget.FromEnvironment(); // long-session context management (off unless AGENT_CONTEXT_TOKENS set)
         var history = new List<JsonNode> { new JsonObject { ["role"] = "system", ["content"] = system }, new JsonObject { ["role"] = "user", ["content"] = user } };
         var toolDefs = new JsonArray(tools.Select(t => (JsonNode)new JsonObject
         {
@@ -193,6 +194,7 @@ public static class ToolLoop
 
         for (var step = 0; step < maxSteps; step++)
         {
+            Context.CompactToolHistory(history, budget); // keep a long tool session within its token budget
             var msg = await Chat(history, toolDefs, ct);
             if (msg["tool_calls"] is not JsonArray calls || calls.Count == 0)
                 return msg["content"]?.GetValue<string>() ?? "";

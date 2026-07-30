@@ -199,6 +199,23 @@ ones. `SemanticLessonStore` curates on every write/read (all knobs default **off
 
 Verified deterministically by `memlife/` (eviction, conflict-demotion, dedup — offline, fixed clock).
 
+### Working context — the short-term tier
+
+The lesson store is the agent's **long-term** memory (facts kept across runs). A long *session* also has a
+**short-term** memory: the running conversation and tool outputs the model holds at once. Left unmanaged it
+overflows the context window and cost climbs with every turn. `Context` (+ `ContextBudget`) manages it,
+mirroring Claude Code's compaction — recent detail stays sharp, older detail becomes gist:
+
+- **`Context.FitAsync`** compacts a conversation to a token budget: the system message and the last *N* turns
+  are kept verbatim; everything older folds into one summary turn (LLM summary if a model is set, deterministic
+  digest offline).
+- **`Context.CompactToolHistory`** bounds a live tool-loop history in place: it trims the oldest bulky tool
+  results while preserving tool-call pairing, so a long tool session never blows the window. Wired into
+  `ToolLoop`, on via `AGENT_CONTEXT_TOKENS`.
+
+Off by default. Verified by `ctxtest/`. Together the two tiers are the whole picture: **curated long-term
+lessons + a budgeted short-term context** — what a growing agent keeps, and what it lets go.
+
 **How an agent's slice relates to the whole:** an agent's lessons are one labeled partition of the platform
 graph. The *domain* nodes it produces (its evaluations, its output block) feed the **shared** Tier-1 graph;
 its *lessons* stay in its **own** Tier-2 partition. That separation is why six agents can learn in parallel
