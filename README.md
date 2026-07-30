@@ -87,7 +87,8 @@ them. With nothing set, everything runs a deterministic mock (offline). If the e
 the key is wrong, each agent degrades to its mock draft rather than failing, so the flow never breaks.
 
 Memory backing: set `AGENT_COSMOS_CONNECTION` for Cosmos DB, otherwise a local JSON file is used.
-Full recipes + hosting on Azure Container Apps are in [`RUNNING.md`](RUNNING.md).
+Full recipes + hosting on Azure Container Apps are in [`RUNNING.md`](RUNNING.md). **New to Foundry —
+finding your endpoint, key, and deployment names in the portal?** See [`docs/FOUNDRY-SETUP.md`](docs/FOUNDRY-SETUP.md).
 
 ## Build a new agent
 
