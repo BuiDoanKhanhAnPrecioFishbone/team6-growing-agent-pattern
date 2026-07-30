@@ -83,21 +83,30 @@ public sealed class FoundryEmbedder : IEmbedder
         _apiVersion = Environment.GetEnvironmentVariable("AGENT_EMBED_API_VERSION");
     }
 
+    private static readonly HashEmbedder Fallback = new(); // never break retrieval if the endpoint is misconfigured
+
     public async Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
     {
-        var url = _baseUrl.TrimEnd('/') + "/embeddings";
-        if (!string.IsNullOrWhiteSpace(_apiVersion)) url += (url.Contains('?') ? "&" : "?") + "api-version=" + _apiVersion;
-        var payload = new JsonObject { ["model"] = _model, ["input"] = new JsonArray(text ?? "") };
-        using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json") };
-        if (!string.IsNullOrWhiteSpace(_key))
+        try
         {
-            if (_auth == "api-key") req.Headers.Add("api-key", _key);
-            else req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _key);
+            var url = _baseUrl.TrimEnd('/') + "/embeddings";
+            if (!string.IsNullOrWhiteSpace(_apiVersion)) url += (url.Contains('?') ? "&" : "?") + "api-version=" + _apiVersion;
+            var payload = new JsonObject { ["model"] = _model, ["input"] = new JsonArray(text ?? "") };
+            using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json") };
+            if (!string.IsNullOrWhiteSpace(_key))
+            {
+                if (_auth == "api-key") req.Headers.Add("api-key", _key);
+                else req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _key);
+            }
+            using var resp = await Http.SendAsync(req, ct);
+            resp.EnsureSuccessStatusCode();
+            var arr = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))?["data"]?[0]?["embedding"]?.AsArray()
+                      ?? throw new InvalidOperationException("no embedding in response");
+            return arr.Select(n => (float)n!.GetValue<double>()).ToArray();
         }
-        using var resp = await Http.SendAsync(req, ct);
-        resp.EnsureSuccessStatusCode();
-        var arr = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))?["data"]?[0]?["embedding"]?.AsArray()
-                  ?? throw new InvalidOperationException("no embedding in response");
-        return arr.Select(n => (float)n!.GetValue<double>()).ToArray();
+        catch
+        {
+            return await Fallback.EmbedAsync(text, ct); // degrade to the offline embedder, don't crash the flow
+        }
     }
 }

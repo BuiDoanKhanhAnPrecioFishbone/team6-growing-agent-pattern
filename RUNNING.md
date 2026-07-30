@@ -124,3 +124,37 @@ For the deployed platform, don't ship keys at all:
 `S3_LLM_*`, `S4_LLM_*`, … follow the identical convention, or set `AGENT_LLM_*` once for all of them.
 Memory backing is chosen the same way: set `AGENT_COSMOS_CONNECTION` for Cosmos, otherwise a local JSON
 file is used (see `PATTERN.md` §6).
+
+---
+
+## 6. Embeddings (Memory v2 semantic retrieval)
+
+Semantic retrieval shortlists lessons with embeddings. Set `AGENT_EMBED_*` to use an Azure AI Foundry
+embedding deployment; with nothing set it uses a deterministic **offline hash embedder** (good enough for
+dev/demo — the retrieval A/B still holds, just capped below ~1.0). The embedder is **fail-safe**: if the
+endpoint is unreachable it silently degrades to the offline embedder rather than breaking retrieval.
+
+`AGENT_EMBED_BASE_URL` is the deployment path **without** the trailing `/embeddings` (the client appends it):
+
+```powershell
+# Azure OpenAI classic deployment route. NOTE: use the *.openai.azure.com hostname, NOT the
+# *.services.ai.azure.com endpoint the deployment page shows — and api-version 2024-02-01 for text-embedding-3.
+$env:AGENT_EMBED_BASE_URL   = "https://<resource>.openai.azure.com/openai/deployments/text-embedding-3-small"
+$env:AGENT_EMBED_API_KEY    = "<key>"
+$env:AGENT_EMBED_AUTH       = "api-key"
+$env:AGENT_EMBED_API_VERSION= "2024-02-01"
+$env:AGENT_EMBED_MODEL      = "text-embedding-3-small"
+```
+
+> If a fresh GlobalStandard deployment returns `DeploymentNotFound` from one network but works from another,
+> it's edge propagation — wait a few minutes or run from the network where your portal call succeeded.
+
+Verify the endpoint resolves from your environment first:
+
+```bash
+curl -s -X POST "$AGENT_EMBED_BASE_URL/embeddings?api-version=2024-10-21" \
+  -H "api-key: $AGENT_EMBED_API_KEY" -H "content-type: application/json" -d '{"input":"hi"}'
+```
+
+A `DeploymentNotFound` here usually means the key belongs to a *different* resource than the one hosting the
+deployment, or the endpoint hasn't propagated to your network edge yet — not a code issue.

@@ -114,6 +114,17 @@
       </div>
     </div>
   </div>
+
+  <div class="panel" style="margin-top:18px">
+    <h2>Second domain — code agent · reward = unit tests</h2>
+    <div style="padding:14px">
+      <div class="row">
+        <button class="primary" id="codeBtn" onclick="runCode()">▶ Run code A/B</button>
+        <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted)">writes Python → runs the tests → learns the house rule (round to 2dp). with vs without memory · ~1 min · live</span>
+      </div>
+      <div id="codeResult" style="margin-top:12px"><div class="empty">Proves the same harness learns in a totally different domain — a real, unhackable reward (tests pass), not the grounding gates.</div></div>
+    </div>
+  </div>
 </div>
 <div id="toast"></div>
 
@@ -261,6 +272,35 @@ async function resetMem(){ await fetch('/api/reset',{method:'POST'}); lastTotal=
 function tog(id){ const e=document.getElementById(id); if(e.classList.contains('teach')){ e.classList.toggle('open'); } else { e.style.display = e.style.display==='none' ? 'block' : 'none'; } }
 
 async function loadStatus(){ try{ const r=await fetch('/api/status'); const s=await r.json(); const el=document.getElementById('status'); el.textContent = s.live ? ('● LIVE · '+s.model) : ('○ mock (offline) — set AGENT_LLM_* for Foundry'); el.style.color = s.live ? 'var(--accent)' : 'var(--faint)'; }catch(e){} }
+
+async function runCode(){
+  const b=document.getElementById('codeBtn'); b.disabled=true; b.textContent='running… (~1 min)';
+  document.getElementById('codeResult').innerHTML='<div class="empty">running the code A/B live — writing Python and running tests for each problem…</div>';
+  try{
+    const r=await fetch('/api/codeagent',{method:'POST'}); const d=await r.json();
+    if(!d.ok){ document.getElementById('codeResult').innerHTML='<div class="empty" style="color:var(--clay)">'+esc(d.error||'failed')+'</div>'; }
+    else renderCode(d);
+  }catch(e){ document.getElementById('codeResult').innerHTML='<div class="empty" style="color:var(--clay)">request failed</div>'; }
+  b.disabled=false; b.textContent='▶ Run code A/B';
+}
+function renderCode(d){
+  const funcs=d.withMemory.map(x=>x.func);
+  const cell=v=> v>=0.99?'<span style="color:var(--accent);font-weight:700">✓</span>':'<span style="color:var(--clay);font-weight:700">✗</span>';
+  const s=d.summary;
+  const box=(a,b,lab)=>`<div style="flex:1;min-width:180px;border:1px solid var(--hair);border-radius:8px;background:#0a0e11;padding:10px 12px"><div style="font-family:var(--mono);font-size:1.3rem;font-weight:700">${a}<span style="color:var(--faint);font-size:.9rem;font-weight:400"> vs </span>${b}</div><div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">${lab}</div></div>`;
+  const th=funcs.map(f=>`<th style="padding:6px 8px;color:var(--faint);font-size:.62rem;text-transform:uppercase">${esc(f)}</th>`).join('');
+  const row=(a,lab,c)=>`<tr><td style="padding:6px 8px;color:${c};white-space:nowrap">${lab}</td>${a.map(x=>`<td style="padding:6px 8px;text-align:center">${cell(x.first)}</td>`).join('')}</tr>`;
+  document.getElementById('codeResult').innerHTML=
+    `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+       ${box(`<span style="color:var(--accent)">${Math.round(s.withFirst*100)}%</span>`,`<span style="color:var(--clay)">${Math.round(s.noFirst*100)}%</span>`,'first-attempt success — with vs without memory')}
+       ${box(`<span style="color:var(--accent)">${s.withIters.toFixed(1)}</span>`,`<span style="color:var(--clay)">${s.noIters.toFixed(1)}</span>`,'avg iterations to solve')}
+     </div>
+     <div style="overflow-x:auto;border:1px solid var(--hair);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.8rem">
+       <thead><tr style="background:var(--surface-2)"><th style="padding:6px 8px;text-align:left;color:var(--faint);font-size:.62rem;text-transform:uppercase">solved first try?</th>${th}</tr></thead>
+       <tbody>${row(d.withMemory,'with memory','var(--accent)')}${row(d.noMemory,'no memory','var(--clay)')}</tbody>
+     </table></div>
+     <div style="font-family:var(--mono);font-size:.7rem;color:var(--faint);margin-top:8px">real reward = unit tests pass · problem 1 fails either way (nothing learned yet); with memory it learns the rule and one-shots the rest.</div>`;
+}
 
 loadStatus(); loadLessons();
 </script>

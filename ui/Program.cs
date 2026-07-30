@@ -213,6 +213,8 @@ app.MapPost("/api/teach", async (TeachRequest t, SemanticLessonStore store) =>
 });
 
 app.MapGet("/api/status", () => Results.Json(new { model = AIAssistant.AgentHost.Model.Name, live = AIAssistant.AgentHost.Model.Enabled }));
+// Second-domain proof: the code agent A/B (reward = unit tests). ~1 min; live model + python.
+app.MapPost("/api/codeagent", async () => Results.Json(await CodeAgentDemo.RunAbAsync()));
 app.MapGet("/api/lessons", async (SemanticLessonStore store) => Results.Json(await store.AllAsync()));
 app.MapPost("/api/reset", (SemanticLessonStore store) => { store.Clear(); return Results.Ok(new { ok = true }); });
 

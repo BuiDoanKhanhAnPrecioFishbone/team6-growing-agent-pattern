@@ -99,6 +99,16 @@ dotnet run --project sN
 
 See `PATTERN.md §7–§10` for the contract, the five design decisions, and the checklist.
 
+**Using an AI coding agent (Claude Code / Codex)?** Invoke the **`build-growing-agent`** skill
+(`.claude/skills/build-growing-agent/`) — it walks the coding agent through the same pattern and guardrails,
+so new agents come out consistent every time. It's the *executable* form of `PATTERN.md`.
+
+- **Humans** read `PATTERN.md` and copy `_template`.
+- **Coding agents** follow the skill.
+- **When the harness changes:** update `PATTERN.md` + the skill together, commit; teammates re-sync their
+  skills folder and every coding agent scaffolds to the new pattern automatically. (Symlink the skill into
+  `.codex/skills/` etc. to share it across other agent runtimes — the team6 shared-skills convention.)
+
 ## Memory v2 — semantic, self-refining lessons (in progress)
 
 The lesson memory is being upgraded from exact-match to **semantic retrieval with LLM recall** plus
