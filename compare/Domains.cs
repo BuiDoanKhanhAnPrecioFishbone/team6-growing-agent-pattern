@@ -141,7 +141,14 @@ public sealed class MoatDomain : IDomain
             new[]{ "37% market share, #1 in the category for 10 years", "gross margin 42%, ~10pts above peers", "distribution to 250,000 outlets nationwide" },
             Array.Empty<string>(), "must cite [S1]/[S2]/[S3], never [S4]"),
     };
-    public Task<string> BareAsync(DemoTask t, CancellationToken ct) => Llm.Plain(SysFor(t, Array.Empty<Lesson>(), null), t.Prompt, 0, ct);
+    // Playground baseline: the facts, but the NAIVE ask — no citation scaffolding. The harness's value is
+    // that it enforces grounding (and learns to), so the bare draft typically omits the [S#] tags.
+    public Task<string> BareAsync(DemoTask t, CancellationToken ct)
+    {
+        var sb = new StringBuilder("You are an equity analyst. Write a 2-sentence economic-moat assessment based on these facts:\n");
+        foreach (var s in t.Sources) sb.Append("- ").Append(s).Append('\n');
+        return Llm.Plain(sb.ToString(), t.Prompt, 0, ct);
+    }
     public IAgent NewAgent(DemoTask t) => new MoatAgent(t);
 
     static string SysFor(DemoTask t, IReadOnlyList<Lesson> lessons, string? critique)
