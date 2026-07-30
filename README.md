@@ -128,7 +128,7 @@ so new agents come out consistent every time. It's the *executable* form of `PAT
 
 The lesson memory is being upgraded from exact-match to **semantic retrieval with LLM recall** plus
 self-refinement — behind the same `ILessonStore` seam, so agents don't change. Plan &amp; schedule:
-[`PLAN-memory-v2.md`](PLAN-memory-v2.md).
+[`docs/PLAN-memory-v2.md`](docs/PLAN-memory-v2.md).
 
 - **`SemanticLessonStore`** — embed the situation → vector shortlist → a cheap LLM picks the *applicable*
   lessons → two-phase load. Set `AGENT_EMBED_*` for Azure embeddings; offline it uses a hash embedder.
