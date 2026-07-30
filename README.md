@@ -186,6 +186,10 @@ compacts it the way Claude Code does — recent detail sharp, older detail gist:
 
 Off by default. Verified by `ctxtest/` (`dotnet run --project ctxtest` — 11 deterministic checks).
 
+**Live demo** (`ctxdemo/`): a needle-in-a-haystack — plant a client fact early in a long session, bury it
+under filler, ask about it at the end under a tight budget. At the **same** budget, naive truncation forgets
+the fact; compaction's summary remembers it. Live-only: set `AGENT_LLM_*` then `dotnet run --project ctxdemo`.
+
 ---
 *Requires .NET 8 SDK. The agents run offline with deterministic mock models; supply `AGENT_LLM_*` to use
 a real model. No secrets are stored in this repo.*

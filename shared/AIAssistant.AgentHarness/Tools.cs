@@ -213,7 +213,12 @@ public static class ToolLoop
 
     /// <summary>A single plain-text completion with no tools — the "bare model" baseline, and the building
     /// block for self-verify / escalation. Reuses AGENT_LLM_*.</summary>
-    public static async Task<string> CompleteAsync(string system, string user, double temperature = 0, CancellationToken ct = default)
+    public static Task<string> CompleteAsync(string system, string user, double temperature = 0, CancellationToken ct = default)
+        => CompleteMessagesAsync(new[] { new ChatTurn("system", system), new ChatTurn("user", user) }, temperature, ct);
+
+    /// <summary>A plain-text completion over a full message list (no tools) — lets a caller send a managed
+    /// conversation (e.g. one compacted by <see cref="Context"/>). Reuses AGENT_LLM_*.</summary>
+    public static async Task<string> CompleteMessagesAsync(IReadOnlyList<ChatTurn> messages, double temperature = 0, CancellationToken ct = default)
     {
         if (!Enabled) throw new InvalidOperationException("AGENT_LLM_* not set — a live model is required.");
         var url = Env("AGENT_LLM_BASE_URL")!.TrimEnd('/') + "/chat/completions";
@@ -223,9 +228,7 @@ public static class ToolLoop
         {
             ["model"] = Env("AGENT_LLM_MODEL") is { Length: > 0 } m ? m : "gpt-4o-mini",
             ["temperature"] = temperature,
-            ["messages"] = new JsonArray(
-                new JsonObject { ["role"] = "system", ["content"] = system },
-                new JsonObject { ["role"] = "user", ["content"] = user }),
+            ["messages"] = new JsonArray(messages.Select(m => (JsonNode)new JsonObject { ["role"] = m.Role, ["content"] = m.Content }).ToArray()),
         };
         using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json") };
         var key = Env("AGENT_LLM_API_KEY");
