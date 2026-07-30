@@ -112,9 +112,12 @@ dotnet run --project compare          # → http://localhost:5310
 
 Same model on both sides. **Left** is one raw completion — exactly the Foundry playground. **Right** runs
 that *same model* through the real harness: a reward-gated loop with a growing memory. Pick a domain
-(**Factual QA · General reasoning · Value-investing**), hit **Run**, then **Run again** to watch the harness
-side compound while the playground stays flat:
+(**UI-from-a-design · Factual QA · General reasoning · Value-investing**), hit **Run**, then **Run again** to
+watch the harness side compound while the playground stays flat:
 
+- **UI from a design** — from a design brief, bare one-shots a thin, incomplete page; the harness's reward
+  checks the spec (every section + responsive CSS), **iterates to a complete page**, and learns it. Both
+  results render **side by side in live preview frames** — you literally see the difference.
 - **Factual QA** — bare answers from stale memory (*"Warren Buffett"*); the harness's reward fails it, it
   **learns to call `web_search`**, answers *"Greg Abel"* — and recalls that lesson first-try next run.
 - **General reasoning** — bare rushes a trick question wrong; **best-of-N + self-verify** work it correctly.

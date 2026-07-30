@@ -187,8 +187,77 @@ public sealed class MoatDomain : IDomain
     }
 }
 
+// ── 4. UI from a design — reward = does the page render COMPLETE and responsive ────────────────
+// The design "spec" (as if extracted from a Figma frame) lists the sections the page must contain. Bare
+// one-shots it and usually drops sections or responsive CSS; the harness's reward checks the spec, iterates
+// to a complete page, an LLM critic grades fidelity, and it LEARNS "include every section + @media" — so the
+// next design comes out complete first try. The compare UI renders both outputs side by side.
+public sealed class UiDomain : IDomain
+{
+    public string Key => "ui"; public string Title => "UI from a design";
+    public string Blurb => "reward = renders complete & responsive: the harness turns a thin first draft into a full page — and learns to";
+    public string Sector => "frontend"; public bool SelfVerify => true; public int Samples => 1;
+
+    // The spec, as if pulled from a Figma frame — each section is verified by keyword against the HTML.
+    static readonly (string Label, string[] Kw)[] Spec =
+    {
+        ("top nav",          new[]{"<nav","navbar","<header"}),
+        ("hero headline",    new[]{"<h1"}),
+        ("Starter tier",     new[]{"starter"}),
+        ("Pro tier",         new[]{">pro","pro<","pro "}),
+        ("Enterprise tier",  new[]{"enterprise"}),
+        ("prices",           new[]{"/mo","per month","$"}),
+        ("CTA buttons",      new[]{"<button","get started","sign up","start free","try "}),
+        ("FAQ section",      new[]{"faq","frequently asked","question"}),
+        ("footer",           new[]{"<footer","copyright","©","&copy;"}),
+        ("responsive CSS",   new[]{"@media"}),
+        ("inline styling",   new[]{"<style","style="}),
+    };
+    const string Brief =
+        "Build a modern, responsive pricing page for a SaaS product called \"Ledgerly\" (a bookkeeping tool). "
+        + "Include a top navigation bar; a hero with a headline and subtext; three pricing tiers — Starter, Pro, "
+        + "Enterprise — each with a monthly price and a call-to-action button; a short FAQ section; and a footer. "
+        + "Return ONE complete, self-contained HTML document with inline <style> CSS.";
+
+    public IReadOnlyList<DemoTask> Tasks => new[] { new DemoTask(Brief, Array.Empty<string>(), Array.Empty<string>(), "SaaS pricing page") };
+    public Task<string> BareAsync(DemoTask t, CancellationToken ct) =>
+        Llm.Plain("You are a front-end engineer. Build the page described. Return only the HTML.", t.Prompt, 0, ct);
+    public IAgent NewAgent(DemoTask t) => new UiAgent(t);
+
+    static List<string> Missing(string html)
+    {
+        var h = html.ToLowerInvariant();
+        return Spec.Where(s => !s.Kw.Any(k => h.Contains(k.ToLowerInvariant()))).Select(s => s.Label).ToList();
+    }
+
+    sealed class UiAgent : IAgent
+    {
+        private readonly DemoTask _t; public UiAgent(DemoTask t) => _t = t;
+        public string Id => "cmp-ui";
+        public Task<string> GenerateAsync(AgentContext ctx, IReadOnlyList<Lesson> lessons, string? critique, string? prior, int attempt, CancellationToken ct)
+            => Llm.Plain(Llm.WithLessons(
+                "You are a senior front-end engineer. Build ONE complete, self-contained, responsive HTML document (inline <style> CSS) for the brief. Include EVERY section requested. Return only the HTML.",
+                lessons, critique), _t.Prompt, 0, ct);
+        public Reward Evaluate(string draft, AgentContext ctx)
+        {
+            var missing = Missing(draft);
+            var score = (double)(Spec.Length - missing.Count) / Spec.Length;
+            var ok = missing.Count == 0 && draft.Contains('<');
+            return new Reward(ok, Math.Round(score, 3), new Dictionary<string, double> { ["coverage"] = score },
+                ok ? new HashSet<string>() : new HashSet<string> { "INCOMPLETE_UI" },
+                ok ? "" : "The page is missing: " + string.Join(", ", missing) + ". Add these and return the FULL HTML document.");
+        }
+        public Lesson? LessonFor(string trigger, AgentContext ctx) => new Lesson
+        {
+            Id = "cmp-ui|frontend|INCOMPLETE_UI", Agent = "cmp-ui", Sector = "frontend", Trigger = "INCOMPLETE_UI",
+            Condition = "generating a full page from a design brief",
+            Warning = "Build the COMPLETE page: every requested section (nav, hero, all three pricing tiers, CTAs, FAQ, footer) plus responsive @media CSS and inline <style>. Never return a partial page.",
+        };
+    }
+}
+
 public static class Registry
 {
-    public static readonly IReadOnlyList<IDomain> All = new IDomain[] { new QaDomain(), new ReasonDomain(), new MoatDomain() };
+    public static readonly IReadOnlyList<IDomain> All = new IDomain[] { new UiDomain(), new QaDomain(), new ReasonDomain(), new MoatDomain() };
     public static IDomain? Get(string key) => All.FirstOrDefault(d => d.Key == key);
 }

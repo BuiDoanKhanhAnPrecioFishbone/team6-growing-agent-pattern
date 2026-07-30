@@ -53,6 +53,11 @@
   .body{padding:1rem;flex:1;display:flex;flex-direction:column;gap:.8rem}
   .answer{font-size:.92rem;white-space:pre-wrap;min-height:3.2rem}
   .answer.placeholder{color:var(--faint)}
+  .preview{width:100%;height:360px;border:1px solid var(--line);border-radius:.4rem;background:#fff;display:block}
+  details{margin-top:.5rem;font-family:var(--mono);font-size:.72rem;color:var(--dim)}
+  details summary{cursor:pointer}
+  details pre{max-height:220px;overflow:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:.4rem;padding:.6rem;white-space:pre-wrap;margin:.4rem 0 0}
+  .cov{font-family:var(--mono);font-size:.74rem;color:var(--dim)}
   .verdict{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
   .chip{font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;padding:.2rem .6rem;border-radius:1rem;border:1px solid}
   .chip.pass{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 45%,transparent)}
@@ -137,7 +142,20 @@ function clearPanels(){
   $('bareVerdict').innerHTML=''; $('harnVerdict').innerHTML='';
   $('bareMeta').innerHTML=''; $('harnMeta').innerHTML=''; $('harnLearn').style.display='none';
 }
-function chip(pass){ return `<span class="chip ${pass?'pass':'fail'}">${pass?'correct ✓':'wrong ✗'}</span>`; }
+function chip(pass,label){ return `<span class="chip ${pass?'pass':'fail'}">${label||(pass?'correct ✓':'wrong ✗')}</span>`; }
+function verdict(x,isUi){
+  if(isUi) return chip(x.pass, x.pass?'complete ✓':'incomplete ✗') + `<span class="cov">coverage ${Math.round((x.score||0)*100)}%</span>`;
+  return chip(x.pass);
+}
+function renderAns(el, html, isUi){
+  el.className='answer'; el.innerHTML='';
+  if(isUi){
+    const f=document.createElement('iframe'); f.className='preview'; f.setAttribute('sandbox',''); f.srcdoc = html || '<em>empty</em>';
+    el.appendChild(f);
+    const d=document.createElement('details'); const s=document.createElement('summary'); s.textContent='view code';
+    const p=document.createElement('pre'); p.textContent = html || ''; d.appendChild(s); d.appendChild(p); el.appendChild(d);
+  } else { el.textContent = html || '(no answer)'; }
+}
 
 async function run(){
   $('runBtn').disabled=true; $('runBtn').textContent='Running…';
@@ -147,12 +165,13 @@ async function run(){
     runCount++;
     $('runs').textContent = `run #${runCount} on this memory · Run again to reuse what the harness learned`;
 
-    $('bareAns').className='answer'; $('bareAns').textContent = r.bare.answer || '(no answer)';
-    $('bareVerdict').innerHTML = chip(r.bare.pass);
+    const isUi = DOM[cur].key==='ui';
+    renderAns($('bareAns'), r.bare.answer, isUi);
+    $('bareVerdict').innerHTML = verdict(r.bare, isUi);
     $('bareMeta').innerHTML = `<span>1 model call</span><span>no memory · nothing carries to the next run</span>`;
 
-    $('harnAns').className='answer'; $('harnAns').textContent = r.harness.answer || '(no answer)';
-    $('harnVerdict').innerHTML = chip(r.harness.pass) + (r.harness.escalated?'<span class="chip">escalated</span>':'');
+    renderAns($('harnAns'), r.harness.answer, isUi);
+    $('harnVerdict').innerHTML = verdict(r.harness, isUi) + (r.harness.escalated?'<span class="chip">escalated</span>':'');
     const used = r.harness.injected.length, learned = r.harness.learned.length;
     let ln='';
     if(learned) ln = `<span class="l">learned</span> a lesson this run — it will apply next time`;
