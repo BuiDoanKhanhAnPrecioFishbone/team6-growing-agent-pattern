@@ -85,9 +85,14 @@ public static class Host
     {
         var conn = Environment.GetEnvironmentVariable("AGENT_COSMOS_CONNECTION");
         if (!string.IsNullOrWhiteSpace(conn))
-            return new CosmosLessonStore(conn,
-                Environment.GetEnvironmentVariable("AGENT_COSMOS_DB") ?? "team6",
-                Environment.GetEnvironmentVariable("AGENT_COSMOS_CONTAINER") ?? "lessons");
+        {
+            var db = Environment.GetEnvironmentVariable("AGENT_COSMOS_DB") ?? "team6";
+            var cont = Environment.GetEnvironmentVariable("AGENT_COSMOS_CONTAINER") ?? "lessons";
+            // AGENT_COSMOS_VECTOR=1 → server-side vector search (needs the account's NoSQL vector-search
+            // capability + AGENT_EMBED_*; see docs/COSMOS-MEMORY.md). Otherwise the exact-match backing.
+            var vector = (Environment.GetEnvironmentVariable("AGENT_COSMOS_VECTOR") ?? "").ToLowerInvariant() is "1" or "true" or "on";
+            return vector ? new CosmosSemanticLessonStore(conn, db, cont) : new CosmosLessonStore(conn, db, cont);
+        }
         // Memory v2: semantic retrieval (embeddings + LLM recall) behind the same ILessonStore seam;
         // empty situation → v1 hit-rate ordering, so it stays drop-in.
         return new SemanticLessonStore(Environment.GetEnvironmentVariable("AGENT_LESSON_STORE")

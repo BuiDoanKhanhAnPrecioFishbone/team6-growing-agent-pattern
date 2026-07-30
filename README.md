@@ -34,6 +34,7 @@ PATTERN.md · RUNNING.md              the playbook (why & the contract) & how to
 docs/
   harness-results.html               one-page results overview (open in a browser)
   START-A-NEW-REPO.md                build agents in another repo (NuGet or vendor the harness)
+  COSMOS-MEMORY.md                   persist lessons/context/memory in Cosmos DB (vector search)
   FOUNDRY-SETUP.md                   find your Foundry endpoint, key & deployment names
   + pitch one-pagers (HTML)
 ```
@@ -154,7 +155,9 @@ These vars wire **every agent, the orchestrator and the UI** to your model — s
 them. With nothing set, everything runs a deterministic mock (offline). If the endpoint is unreachable or
 the key is wrong, each agent degrades to its mock draft rather than failing, so the flow never breaks.
 
-Memory backing: set `AGENT_COSMOS_CONNECTION` for Cosmos DB, otherwise a local JSON file is used.
+Memory backing: set `AGENT_COSMOS_CONNECTION` for Cosmos DB (add `AGENT_COSMOS_VECTOR=1` for **server-side
+vector search** — semantic recall in the cloud), otherwise a local JSON file is used. Teammates: the
+copy-this guide to persist your agent's lessons/context/memory is [`docs/COSMOS-MEMORY.md`](docs/COSMOS-MEMORY.md).
 Full recipes + hosting on Azure Container Apps are in [`RUNNING.md`](RUNNING.md). **New to Foundry —
 finding your endpoint, key, and deployment names in the portal?** See [`docs/FOUNDRY-SETUP.md`](docs/FOUNDRY-SETUP.md).
 

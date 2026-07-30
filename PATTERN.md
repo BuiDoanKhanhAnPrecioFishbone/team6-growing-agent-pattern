@@ -181,7 +181,9 @@ Lesson.Id = "{agent}|{sector}|{trigger}"                            ┐  Tier 2:
 | Full graph | Cosmos **Gremlin** / Neo4j — `Lesson` nodes with `[:LEARNED_FROM]->Thesis`, `[:APPLIED_IN]->Run` edges | when you want lesson↔thesis↔company traversal and provenance of *why* a lesson exists |
 
 Because `LessonStore`'s three methods are the only contract, moving from JSON → Cosmos is a store swap, not
-a rewrite: no agent code and no loop code changes.
+a rewrite: no agent code and no loop code changes. `CosmosSemanticLessonStore` even does **server-side vector
+search** (embedding on the document, `VectorDistance` over a DiskANN index) — the Azure-native form of the
+semantic store. Teammates: [`docs/COSMOS-MEMORY.md`](docs/COSMOS-MEMORY.md) is the copy-this guide.
 
 ### Lifecycle — the memory curates itself
 
