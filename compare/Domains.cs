@@ -8,6 +8,10 @@ namespace Compare;
 // A demo task in some domain, with the reward key kept OUT of the model's prompt (so it can't cheat).
 public sealed record DemoTask(string Prompt, string[] Sources, string[] Accept, string Note);
 
+// The Figma target as a data URL (loaded from the local, gitignored wwwroot/target.png at startup).
+// When present, the UI agent GROUNDS generation in the actual image (multimodal). Null → text-only.
+public static class UiTarget { public static string? ImageDataUrl; }
+
 // One domain the comparison can run. Each provides sample tasks, a harness agent (reward + generation),
 // and the "bare" baseline — the honest playground: the SAME task, one shot, no loop / memory / tools.
 public interface IDomain
@@ -206,7 +210,7 @@ public sealed class UiDomain : IDomain
     // Fidelity to the Figma frame: (trigger, keywords that prove the token is present, the lesson to learn).
     static readonly (string Trigger, string[] Kw, string Lesson)[] Fidelity =
     {
-        ("VIOLET",      new[]{"#6d28d9","#7c3aed","#6366f1","#5b21b6","#4f46e5","violet","indigo"},
+        ("VIOLET",      new[]{"#6d28d9","#7c3aed","#6366f1","#5b21b6","#4f46e5","#8b5cf6","#a855f7","#9333ea","#7e22ce","#4338ca","#6b21a8","violet","indigo","purple","rebeccapurple"},
             "Use a violet/indigo accent (about #6d28d9) for the title and the primary button."),
         ("STARS",       new[]{"★","☆","&#9733","&#9734","fa-star"},
             "Show the rating as five stars (★ ☆), not a dropdown or a number field."),
@@ -216,7 +220,7 @@ public sealed class UiDomain : IDomain
             "The secondary button is labeled \"Rewrite with AI\" (outlined violet, with a sparkle icon)."),
         ("SAVE",        new[]{"save"},
             "The primary button is labeled \"Save\" (solid violet)."),
-        ("LAVENDER",    new[]{"lavender","#f5f3ff","#f3f0ff","#ede9fe","#eef2ff","#f8f7ff","#f6f5ff"},
+        ("LAVENDER",    new[]{"lavender","#f5f3ff","#f3f0ff","#ede9fe","#eef2ff","#f8f7ff","#f6f5ff","#faf5ff","#f4f1fd","#f7f5ff","#eee","#f0eef"},
             "Place the white card on a light lavender page background."),
         ("ROUNDED",     new[]{"border-radius"},
             "Use rounded corners (about 16px) on the card and its controls."),
@@ -251,9 +255,20 @@ public sealed class UiDomain : IDomain
         private readonly DemoTask _t; public UiAgent(DemoTask t) => _t = t;
         public string Id => "cmp-ui";
         public Task<string> GenerateAsync(AgentContext ctx, IReadOnlyList<Lesson> lessons, string? critique, string? prior, int attempt, CancellationToken ct)
-            => Llm.Plain(Llm.WithLessons(
+        {
+            // Layer 1 — multimodal grounding: if the Figma target image is available, generate FROM the image.
+            if (UiTarget.ImageDataUrl is not null && ToolLoop.Enabled)
+                return ToolLoop.CompleteVisionAsync(
+                    "You are a senior front-end engineer. Reproduce the UI in the attached image as ONE complete, "
+                    + "self-contained, responsive HTML document (inline <style> CSS). Match its exact colors, layout, "
+                    + "the star-rating widget, the header icon, the button labels, the button order and their styles as "
+                    + "closely as you can. Return only the HTML.",
+                    Llm.WithLessons(_t.Prompt, lessons, critique), UiTarget.ImageDataUrl, 0, ct);
+
+            return Llm.Plain(Llm.WithLessons(
                 "You are a senior front-end engineer. Build ONE complete, self-contained, responsive HTML document (inline <style> CSS) for the brief, matching the target design exactly. Return only the HTML.",
                 lessons, critique), _t.Prompt, 0, ct);
+        }
         public Reward Evaluate(string draft, AgentContext ctx)
         {
             var misses = Misses(draft);
