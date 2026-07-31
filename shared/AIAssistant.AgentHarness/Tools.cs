@@ -213,12 +213,12 @@ public static class ToolLoop
 
     /// <summary>A single plain-text completion with no tools — the "bare model" baseline, and the building
     /// block for self-verify / escalation. Reuses AGENT_LLM_*.</summary>
-    public static Task<string> CompleteAsync(string system, string user, double temperature = 0, CancellationToken ct = default)
-        => CompleteMessagesAsync(new[] { new ChatTurn("system", system), new ChatTurn("user", user) }, temperature, ct);
+    public static Task<string> CompleteAsync(string system, string user, double temperature = 0, CancellationToken ct = default, string? model = null)
+        => CompleteMessagesAsync(new[] { new ChatTurn("system", system), new ChatTurn("user", user) }, temperature, ct, model);
 
     /// <summary>A plain-text completion over a full message list (no tools) — lets a caller send a managed
     /// conversation (e.g. one compacted by <see cref="Context"/>). Reuses AGENT_LLM_*.</summary>
-    public static async Task<string> CompleteMessagesAsync(IReadOnlyList<ChatTurn> messages, double temperature = 0, CancellationToken ct = default)
+    public static async Task<string> CompleteMessagesAsync(IReadOnlyList<ChatTurn> messages, double temperature = 0, CancellationToken ct = default, string? model = null)
     {
         if (!Enabled) throw new InvalidOperationException("AGENT_LLM_* not set — a live model is required.");
         var url = Env("AGENT_LLM_BASE_URL")!.TrimEnd('/') + "/chat/completions";
@@ -226,9 +226,9 @@ public static class ToolLoop
         if (!string.IsNullOrWhiteSpace(ver)) url += (url.Contains('?') ? "&" : "?") + "api-version=" + ver;
         var payload = new JsonObject
         {
-            ["model"] = Env("AGENT_LLM_MODEL") is { Length: > 0 } m ? m : "gpt-4o-mini",
+            ["model"] = model ?? (Env("AGENT_LLM_MODEL") is { Length: > 0 } m ? m : "gpt-4o-mini"),
             ["temperature"] = temperature,
-            ["messages"] = new JsonArray(messages.Select(m => (JsonNode)new JsonObject { ["role"] = m.Role, ["content"] = m.Content }).ToArray()),
+            ["messages"] = new JsonArray(messages.Select(t => (JsonNode)new JsonObject { ["role"] = t.Role, ["content"] = t.Content }).ToArray()),
         };
         using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json") };
         var key = Env("AGENT_LLM_API_KEY");
@@ -240,7 +240,15 @@ public static class ToolLoop
         using var resp = await Http.SendAsync(req, ct);
         resp.EnsureSuccessStatusCode();
         var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct));
+        RecordUsage(node);
         return node?["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? "";
+    }
+
+    // Every completion records its token usage to the cost ledger, so a run's cost can be measured.
+    private static void RecordUsage(JsonNode? node)
+    {
+        if (node?["usage"] is not JsonObject u) return;
+        CostLedger.Add(u["prompt_tokens"]?.GetValue<long>() ?? 0, u["completion_tokens"]?.GetValue<long>() ?? 0);
     }
 
     /// <summary>A completion that includes an image (vision) — grounds generation in a target design, and
@@ -271,6 +279,7 @@ public static class ToolLoop
         using var resp = await Http.SendAsync(req, ct);
         resp.EnsureSuccessStatusCode();
         var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct));
+        RecordUsage(node);
         return node?["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? "";
     }
 
@@ -297,6 +306,7 @@ public static class ToolLoop
         using var resp = await Http.SendAsync(req, ct);
         resp.EnsureSuccessStatusCode();
         var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct));
+        RecordUsage(node);
         return ((node?["choices"]?[0]?["message"] as JsonObject)?.DeepClone() as JsonObject) ?? new JsonObject { ["content"] = "" };
     }
 }

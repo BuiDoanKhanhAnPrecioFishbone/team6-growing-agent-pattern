@@ -76,7 +76,14 @@ dotnet run --project ctxtest                     # context management — 11/11
 # live · set AGENT_LLM_* first
 dotnet run --project ampeval                     # grounding: bare 5/6 → +web_search 6/6
 dotnet run --project ctxdemo                     # context: compaction recalls, truncation forgets
+dotnet run --project costbench                    # cost thesis: mini+harness quality & $ vs a frontier model
 ```
+
+**The cost thesis** (`costbench/`): on reasoning traps, measures quality **and real token cost** four ways —
+bare mini, mini+harness (cold, then warm), and a frontier model (`AGENT_LLM_MODEL_STRONG`). The claim it
+tests: mini+harness ≈ frontier *quality*, and while the frontier costs the same every time, the harness gets
+**cheaper run-over-run as it learns** (memory → fewer iterations). Backed by a `CostLedger` that records every
+call's token `usage`.
 
 ### Run a single agent as its own service
 
