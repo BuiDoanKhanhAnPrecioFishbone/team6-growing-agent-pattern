@@ -40,6 +40,9 @@ app.MapGet("/api/domains", () => Results.Json(new
 
 app.MapPost("/api/reset", () => { store.Clear(); return Results.Json(new { ok = true }); });
 
+// Live cost thesis: quality + real $ for bare / mini+harness (cold, warm) / frontier on a reasoning suite.
+app.MapPost("/api/cost", async (HttpRequest req) => Results.Json(await CostRun.RunAsync(req.HttpContext.RequestAborted)));
+
 app.MapPost("/api/compare", async (HttpRequest req) =>
 {
     var body = (JsonNode.Parse(await new StreamReader(req.Body).ReadToEndAsync()) as JsonObject) ?? new JsonObject();

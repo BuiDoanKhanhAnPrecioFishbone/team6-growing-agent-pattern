@@ -41,6 +41,16 @@ var suite = new (string Q, string[] A)[]
     ("A hen and a half lay an egg and a half in a day and a half. How many eggs does one hen lay in one day?", new[]{"2/3","0.66","0.67","two-third","two thirds"}),
     ("A patch of lily pads doubles in size every day and covers a whole lake on day 48. On which day was the lake exactly half covered?", new[]{"47"}),
     ("What number comes next in the sequence: 2, 6, 12, 20, 30, ?", new[]{"42"}),
+    ("A farmer has 17 sheep. All but 9 run away. How many sheep does the farmer have left?", new[]{"9 sheep","nine","are 9","is 9"}),
+    ("There are 12 fish in a tank. 5 of them drown. How many fish are left in the tank?", new[]{"12 fish","twelve","all 12","are 12"}),
+    ("You are running a race and you overtake the person in 2nd place. What place are you in now?", new[]{"second","2nd"}),
+    ("A snail is at the bottom of a 10-foot well. Each day it climbs 3 feet; each night it slips back 2 feet. How many days to get out?", new[]{"8 day","eight day"}),
+    ("If 2 cats catch 2 mice in 2 minutes, how many cats are needed to catch 100 mice in 100 minutes?", new[]{"2 cat","two cat","just 2","only 2"}),
+    ("What number comes next: 1, 1, 2, 3, 5, 8, ?", new[]{"13"}),
+    ("If 8 workers build a wall in 10 hours, how long would 4 workers take to build the same wall?", new[]{"20 hour","20 hr","20h"}),
+    ("A red house is made of red bricks and a blue house of blue bricks. What is a greenhouse made of?", new[]{"glass"}),
+    ("Which is heavier: a pound of feathers or a pound of bricks?", new[]{"same","equal","neither","weigh the same"}),
+    ("A clock takes 6 seconds to strike 6 o'clock. How many seconds does it take to strike 12 o'clock?", new[]{"13.2","13 sec"}),
 };
 int N = suite.Length;
 

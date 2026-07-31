@@ -51,6 +51,14 @@
   .tchip{font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;padding:.1rem .45rem;border-radius:1rem;border:1px solid;flex:none}
   .tchip.v{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 45%,transparent)}
   .tchip.p{color:var(--warn);border-color:color-mix(in oklab,var(--warn) 45%,transparent)}
+  .costhead{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+  .crow{display:grid;grid-template-columns:minmax(8rem,11rem) 1fr 2.5rem 5rem;gap:.6rem;align-items:center;padding:.3rem 0}
+  .cname{color:var(--fg);font-family:var(--mono);font-size:.74rem}
+  .cbarwrap{background:var(--panel-2);border:1px solid var(--line);border-radius:.3rem;height:.95rem;overflow:hidden}
+  .cbar{height:100%;border-radius:.3rem;min-width:2px;transition:width .4s ease}
+  .cqual{font-family:var(--mono);font-size:.76rem;color:var(--dim);text-align:right}
+  .ccost{font-family:var(--mono);font-size:.78rem;color:var(--fg);text-align:right;font-variant-numeric:tabular-nums}
+  .chead{color:var(--accent);font-size:.86rem;margin:.9rem 0 0;border-left:2px solid var(--accent);padding-left:.7rem;line-height:1.5}
   .col{border:1px solid var(--line);border-radius:.7rem;background:var(--panel);overflow:hidden;display:flex;flex-direction:column}
   .col.harness{border-color:color-mix(in oklab,var(--accent) 40%,var(--line))}
   .col h2{margin:0;font-size:.95rem;padding:.85rem 1rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.5rem}
@@ -90,6 +98,15 @@
     <span class="badge" id="modelBadge"><span class="dot off"></span> loading…</span>
     <span class="spacer"></span>
     <button id="resetBtn" title="wipe the harness's learned memory">Reset memory</button>
+  </div>
+
+  <div class="lessons" id="costCard">
+    <div class="costhead">
+      <p class="tlabel" style="margin:0">Cost thesis — cheap model + harness vs a frontier model</p>
+      <span style="flex:1"></span>
+      <button id="costBtn">Measure cost (live · ~1–2 min)</button>
+    </div>
+    <div id="costOut"></div>
   </div>
 
   <div class="tabs" id="tabs"></div>
@@ -206,6 +223,21 @@ async function run(){
   finally{ $('runBtn').disabled=false; $('runBtn').textContent='Run again'; }
 }
 
+$('costBtn').onclick=async()=>{
+  const b=$('costBtn'); b.disabled=true; b.textContent='Measuring…';
+  $('costOut').innerHTML='<p style="color:var(--faint);font-size:.8rem;margin:.6rem 0 0">running bare · harness (cold) · harness (warm)'+' · frontier — a few minutes…</p>';
+  try{
+    const r=await (await fetch('/api/cost',{method:'POST'})).json();
+    const max=Math.max(...r.modes.map(m=>m.cost),1e-9);
+    const rows=r.modes.map(m=>{
+      const w=Math.max(2,Math.round(m.cost/max*100));
+      const col=m.kind==='frontier'?'var(--bad)':(m.kind==='harness'?'var(--accent)':'var(--faint)');
+      return `<div class="crow"><div class="cname">${esc(m.name)}</div><div class="cbarwrap"><div class="cbar" style="width:${w}%;background:${col}"></div></div><div class="cqual">${m.quality}/${r.total}</div><div class="ccost">$${m.cost.toFixed(5)}</div></div>`;
+    }).join('');
+    $('costOut').innerHTML=rows+`<p class="chead">→ ${esc(r.headline)}</p>`;
+  }catch(e){ $('costOut').innerHTML='<p style="color:var(--bad);font-size:.85rem">error: '+esc(e.message)+'</p>'; }
+  finally{ b.disabled=false; b.textContent='Measure cost again'; }
+};
 $('runBtn').onclick=run;
 $('resetBtn').onclick=async()=>{ await fetch('/api/reset',{method:'POST'}); runCount=0; $('runs').textContent='memory wiped · fresh start'; clearPanels(); };
 load();
