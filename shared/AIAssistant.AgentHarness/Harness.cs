@@ -208,8 +208,9 @@ public sealed class AgentHarness
             var passed = best.Pass && best.Score >= opt.Threshold;
 
             // ── self-verify: an LLM critic may object even when the reward is satisfied (soft errors the
-            //    deterministic reward can't see). Selection stays reward-only; this only shapes the revise. ──
-            string? reviewerNotes = _critic is null ? null
+            //    deterministic reward can't see). Selection stays reward-only; this only shapes the revise.
+            //    Skip it on the final iteration — there is no revise left to act on its feedback. ──
+            string? reviewerNotes = (_critic is null || iter == opt.MaxIters - 1) ? null
                 : await _critic.CritiqueAsync(ctx, roundBestDraft!, roundBest!, ct);
 
             if (passed && reviewerNotes is null) break;   // reward satisfied AND no reviewer objection

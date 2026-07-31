@@ -27,6 +27,31 @@ public interface IDomain
     Task<string> BareAsync(DemoTask t, CancellationToken ct);
     bool ThreeWay => false;   // show a 3rd "learned" column + a design-match score + the lesson list (UI)
     int MaxIters => 3;        // per-domain cap on regenerations
+    ICritic? Critic => SelfVerify ? new LlmCritic() : null;  // self-verify critic (UI overrides with a vision judge)
+    int Elements => 0;        // for a checklist domain (UI): how many design tokens the score is out of
+}
+
+// Layer 2 — the vision judge: SEES the target design and the candidate's HTML, and lists concrete diffs to
+// fix (visual AND behavioural) so the loop refines toward the actual design instead of a keyword checklist.
+public sealed class VisionCritic : ICritic
+{
+    public async Task<string?> CritiqueAsync(AgentContext ctx, string draft, Reward reward, CancellationToken ct)
+    {
+        if (UiTarget.ImageDataUrl is null || !ToolLoop.Enabled) return null;
+        const string sys =
+            "You are a senior UI engineer reviewing an implementation against a TARGET design (the attached image). "
+            + "Compare the CANDIDATE HTML/CSS to the target and list ONLY concrete, actionable fixes so it matches the "
+            + "target — visual (colors, spacing, the star widget's look — bare stars, NOT boxed; button styles and order) "
+            + "AND behavioural (hover/click on the stars sets the rating; the Save button is disabled until a rating and "
+            + "review exist). Terse bullet points. If it already matches the target well, reply with exactly: OK";
+        try
+        {
+            var verdict = (await ToolLoop.CompleteVisionAsync(sys, "CANDIDATE HTML:\n" + draft, UiTarget.ImageDataUrl, 0, ct)).Trim();
+            return verdict.Length == 0 || verdict.TrimStart('#', '*', '-', ' ', '`').StartsWith("OK", StringComparison.OrdinalIgnoreCase)
+                ? null : verdict;
+        }
+        catch { return null; } // a critic failure must never break the loop
+    }
 }
 
 // Shared helpers ---------------------------------------------------------------
@@ -206,6 +231,8 @@ public sealed class UiDomain : IDomain
     public string Sector => "frontend"; public bool SelfVerify => false; public int Samples => 1;
     public bool ThreeWay => false;  // two columns: playground vs the learned harness (a cold column ≈ bare, only confusing)
     public int MaxIters => 2;       // cap regenerations — each is a full HTML page
+    public ICritic? Critic => new VisionCritic();  // layer 2: the loop refines against the actual image
+    public int Elements => Fidelity.Length;        // the score is out of this many design tokens
 
     // Fidelity to the Figma frame: (trigger, keywords that prove the token is present, the lesson to learn).
     static readonly (string Trigger, string[] Kw, string Lesson)[] Fidelity =
@@ -230,6 +257,10 @@ public sealed class UiDomain : IDomain
             "The textarea placeholder reads \"Write your review for this candidate — strengths, concerns, and a hiring recommendation…\"."),
         ("BLOB",        new[]{"radial-gradient","::before","::after"},
             "Add a subtle decorative gradient blob accent behind the card."),
+        ("INTERACTIVE", new[]{"onclick","onmouseover","addeventlistener",":hover","cursor:pointer","cursor: pointer"},
+            "Make the stars interactive — hover and click set the rating (JS handlers or :hover + cursor:pointer). The stars are bare, with NO bordered box around each one."),
+        ("DISABLED",    new[]{"disabled"},
+            "The Save button starts DISABLED (greyed) until a rating and a review have been entered."),
     };
     const string Brief =
         "Build a \"Review for Candidate\" review card as a complete, responsive, self-contained HTML document "

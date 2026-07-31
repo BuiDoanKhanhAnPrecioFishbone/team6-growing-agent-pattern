@@ -150,10 +150,10 @@ function clearPanels(){
   $('lessonsPanel').style.display='none';
 }
 function chip(pass,label){ return `<span class="chip ${pass?'pass':'fail'}">${label}</span>`; }
-function verdictHtml(d,isUi){
+function verdictHtml(d,isUi,total){
   if(isUi){
-    const m = Math.round((d.score||0)*10);
-    return `<span class="chip ${d.pass?'pass':'part'}">${m}/10 elements</span><span class="cov">design elements matched</span>`;
+    const T = total||10, m = Math.round((d.score||0)*T);
+    return `<span class="chip ${d.pass?'pass':'part'}">${m}/${T} elements</span><span class="cov">design elements matched</span>`;
   }
   return chip(d.pass, d.pass?'correct ✓':'wrong ✗');
 }
@@ -191,7 +191,7 @@ async function run(){
         +`<div class="answer"></div><div class="verdict"></div>`
         +`${p.note?`<div class="learn"><span class="l">✓</span> ${p.note}</div>`:''}<div class="meta">${p.meta}</div></div>`;
       renderInto(col.querySelector('.answer'), p.d.answer, isUi);
-      col.querySelector('.verdict').innerHTML = verdictHtml(p.d, isUi)
+      col.querySelector('.verdict').innerHTML = verdictHtml(p.d, isUi, r.elementsTotal)
         + (p.harness && r.harness.escalated ? '<span class="chip fail">escalated</span>' : '');
       cols.appendChild(col);
     }

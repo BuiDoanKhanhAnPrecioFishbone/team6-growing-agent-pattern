@@ -68,7 +68,8 @@ app.MapPost("/api/compare", async (HttpRequest req) =>
     }
 
     // (3) harness LEARNED — the real loop + persistent memory: recalls what it knows, learns what it missed.
-    var harness = new AgentHarness(store, critic: domain.SelfVerify ? new LlmCritic() : null);
+    // The critic is the domain's (UI uses a vision judge that compares the output to the target image).
+    var harness = new AgentHarness(store, critic: domain.Critic);
     var o = await harness.RunAsync(domain.NewAgent(task), ctx, opt, ct);
 
     // Everything this agent has learned so far (shown each run).
@@ -79,6 +80,7 @@ app.MapPost("/api/compare", async (HttpRequest req) =>
     return Results.Json(new
     {
         live = Model.Enabled, model = Model.Name,
+        elementsTotal = domain.Elements,
         bare = new { answer = bare, pass = bareR.Pass, score = bareR.Score },
         cold,
         harness = new
