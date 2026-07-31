@@ -70,6 +70,7 @@
   .chip{font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;padding:.2rem .6rem;border-radius:1rem;border:1px solid}
   .chip.pass{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 45%,transparent)}
   .chip.fail{color:var(--bad);border-color:color-mix(in oklab,var(--bad) 45%,transparent)}
+  .chip.part{color:var(--dim);border-color:var(--line)}
   .meta{font-family:var(--mono);font-size:.76rem;color:var(--dim);display:flex;flex-wrap:wrap;gap:.3rem 1rem;border-top:1px solid var(--line);padding-top:.7rem;margin-top:auto}
   .meta b{color:var(--fg)}
   .learn{font-size:.8rem;color:var(--dim);border-left:2px solid var(--accent);padding-left:.7rem}
@@ -150,9 +151,11 @@ function clearPanels(){
 }
 function chip(pass,label){ return `<span class="chip ${pass?'pass':'fail'}">${label}</span>`; }
 function verdictHtml(d,isUi){
-  const label = isUi ? (d.pass?'match ✓':'partial ✗') : (d.pass?'correct ✓':'wrong ✗');
-  const c = chip(d.pass,label);
-  return isUi ? c+`<span class="cov">design-match ${Math.round((d.score||0)*100)}%</span>` : c;
+  if(isUi){
+    const m = Math.round((d.score||0)*10);
+    return `<span class="chip ${d.pass?'pass':'part'}">${m}/10 elements</span><span class="cov">design elements matched</span>`;
+  }
+  return chip(d.pass, d.pass?'correct ✓':'wrong ✗');
 }
 function renderInto(el, html, isUi){
   el.className='answer'; el.innerHTML='';

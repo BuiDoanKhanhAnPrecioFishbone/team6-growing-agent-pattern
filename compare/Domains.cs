@@ -198,9 +198,9 @@ public sealed class MoatDomain : IDomain
 public sealed class UiDomain : IDomain
 {
     public string Key => "ui"; public string Title => "UI from a design";
-    public string Blurb => "match a Figma card: the harness learns the exact colors, widgets and labels, and reproduces them";
+    public string Blurb => "reproduce a Figma card — the harness learns the exact colors, widgets and labels. Score = design elements matched (a checklist, not a pixel diff)";
     public string Sector => "frontend"; public bool SelfVerify => false; public int Samples => 1;
-    public bool ThreeWay => true;   // 3rd "learned" column + the lessons + a design-match score
+    public bool ThreeWay => false;  // two columns: playground vs the learned harness (a cold column ≈ bare, only confusing)
     public int MaxIters => 2;       // cap regenerations — each is a full HTML page
 
     // Fidelity to the Figma frame: (trigger, keywords that prove the token is present, the lesson to learn).
