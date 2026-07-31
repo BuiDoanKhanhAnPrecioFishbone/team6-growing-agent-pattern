@@ -21,6 +21,8 @@ public interface IDomain
     IReadOnlyList<DemoTask> Tasks { get; }
     IAgent NewAgent(DemoTask t);
     Task<string> BareAsync(DemoTask t, CancellationToken ct);
+    bool ThreeWay => false;   // show a 3rd "learned" column + a design-match score + the lesson list (UI)
+    int MaxIters => 3;        // per-domain cap on regenerations
 }
 
 // Shared helpers ---------------------------------------------------------------
@@ -187,45 +189,48 @@ public sealed class MoatDomain : IDomain
     }
 }
 
-// ── 4. UI from a design — reward = does the page render COMPLETE and responsive ────────────────
-// The design "spec" (as if extracted from a Figma frame) lists the sections the page must contain. Bare
-// one-shots it and usually drops sections or responsive CSS; the harness's reward checks the spec, iterates
-// to a complete page, an LLM critic grades fidelity, and it LEARNS "include every section + @media" — so the
-// next design comes out complete first try. The compare UI renders both outputs side by side.
+// ── 4. UI from a design — the harness LEARNS the exact Figma design tokens ───────────────────────
+// The harness gets only a MODERATE brief (structure). The exact tokens of the Figma card — the violet
+// accent, the star widget, the speech-bubble icon, the button labels, the lavender background, the
+// placeholder — are NOT told; the fidelity reward checks each and the harness learns them as lessons. So:
+// bare (naive) < harness cold (spec, no lessons) < harness learned (matches the design). Three-way, with a
+// design-match score and the growing lesson list.
 public sealed class UiDomain : IDomain
 {
     public string Key => "ui"; public string Title => "UI from a design";
-    public string Blurb => "reward = renders complete & responsive: the harness turns a thin first draft into a full page — and learns to";
-    // Self-verify off here: the coverage reward already enforces completeness, and re-grading a full HTML
-    // page each round just adds latency. (Reasoning keeps self-verify, where soft correctness needs it.)
+    public string Blurb => "match a Figma card: the harness learns the exact colors, widgets and labels, and reproduces them";
     public string Sector => "frontend"; public bool SelfVerify => false; public int Samples => 1;
+    public bool ThreeWay => true;   // 3rd "learned" column + the lessons + a design-match score
+    public int MaxIters => 2;       // cap regenerations — each is a full HTML page
 
-    // The spec, derived from a real Figma frame (a "Review for Candidate" card) — each element is verified
-    // by keyword against the generated HTML. Structure/style only; no product-specific copy.
-    static readonly (string Label, string[] Kw)[] Spec =
+    // Fidelity to the Figma frame: (trigger, keywords that prove the token is present, the lesson to learn).
+    static readonly (string Trigger, string[] Kw, string Lesson)[] Fidelity =
     {
-        ("card title",          new[]{"review for candidate"}),
-        ("header icon",         new[]{"💬","<svg","icon"}),
-        ("5-star rating",       new[]{"star","★","☆","rating"}),
-        ("review textarea",     new[]{"<textarea"}),
-        ("placeholder text",    new[]{"placeholder"}),
-        ("Rewrite-with-AI btn", new[]{"rewrite with ai","rewrite"}),
-        ("Save button",         new[]{"save"}),
-        ("violet theme",        new[]{"violet","indigo","purple","#6","#7","#8"}),
-        ("rounded corners",     new[]{"border-radius"}),
-        ("soft shadow",         new[]{"box-shadow"}),
-        ("responsive CSS",      new[]{"@media"}),
-        ("inline styling",      new[]{"<style","style="}),
+        ("VIOLET",      new[]{"#6d28d9","#7c3aed","#6366f1","#5b21b6","#4f46e5","violet","indigo"},
+            "Use a violet/indigo accent (about #6d28d9) for the title and the primary button."),
+        ("STARS",       new[]{"★","☆","&#9733","&#9734","fa-star"},
+            "Show the rating as five stars (★ ☆), not a dropdown or a number field."),
+        ("ICON",        new[]{"💬","&#128172","speech-bubble","speech bubble"},
+            "Put a small speech-bubble icon (💬) next to the \"Review for Candidate\" title."),
+        ("REWRITE",     new[]{"rewrite with ai","rewrite"},
+            "The secondary button is labeled \"Rewrite with AI\" (outlined violet, with a sparkle icon)."),
+        ("SAVE",        new[]{"save"},
+            "The primary button is labeled \"Save\" (solid violet)."),
+        ("LAVENDER",    new[]{"lavender","#f5f3ff","#f3f0ff","#ede9fe","#eef2ff","#f8f7ff","#f6f5ff"},
+            "Place the white card on a light lavender page background."),
+        ("ROUNDED",     new[]{"border-radius"},
+            "Use rounded corners (about 16px) on the card and its controls."),
+        ("SHADOW",      new[]{"box-shadow"},
+            "Give the card a soft drop shadow."),
+        ("PLACEHOLDER", new[]{"write your review"},
+            "The textarea placeholder reads \"Write your review for this candidate — strengths, concerns, and a hiring recommendation…\"."),
+        ("BLOB",        new[]{"radial-gradient","::before","::after"},
+            "Add a subtle decorative gradient blob accent behind the card."),
     };
     const string Brief =
-        "Build a \"Review for Candidate\" card as ONE complete, self-contained, responsive HTML document with "
-        + "inline <style> CSS. Layout: a header row with a small speech-bubble icon and the title "
-        + "\"Review for Candidate\" in a violet/indigo accent; a white card with rounded corners (~16px) and a "
-        + "soft drop shadow on a light lavender page background; a 5-star rating control; a large textarea with "
-        + "the placeholder \"Write your review for this candidate — strengths, concerns, and a hiring "
-        + "recommendation…\"; and a bottom row with two buttons aligned right: a \"Rewrite with AI\" button "
-        + "(outlined violet, with a ✨ icon) and a primary \"Save\" button (solid violet). Add a subtle "
-        + "decorative gradient blob accent. Modern, rounded, soft-shadow styling.";
+        "Build a \"Review for Candidate\" review card as a complete, responsive, self-contained HTML document "
+        + "with inline <style> CSS: a header with the title, a rating control, a review textarea with a "
+        + "placeholder, and two action buttons at the bottom. Return only the HTML.";
 
     public IReadOnlyList<DemoTask> Tasks => new[] { new DemoTask(Brief, Array.Empty<string>(), Array.Empty<string>(), "Review-for-Candidate card (from Figma)") };
     // Playground baseline: the NAIVE ask — no spec, no enforcement. The harness's value is that it carries
@@ -235,10 +240,10 @@ public sealed class UiDomain : IDomain
             "Build a \"Review for Candidate\" review card as a small HTML page.", 0, ct);
     public IAgent NewAgent(DemoTask t) => new UiAgent(t);
 
-    static List<string> Missing(string html)
+    static List<string> Misses(string html)
     {
         var h = html.ToLowerInvariant();
-        return Spec.Where(s => !s.Kw.Any(k => h.Contains(k.ToLowerInvariant()))).Select(s => s.Label).ToList();
+        return Fidelity.Where(f => !f.Kw.Any(k => h.Contains(k.ToLowerInvariant()))).Select(f => f.Trigger).ToList();
     }
 
     sealed class UiAgent : IAgent
@@ -247,23 +252,27 @@ public sealed class UiDomain : IDomain
         public string Id => "cmp-ui";
         public Task<string> GenerateAsync(AgentContext ctx, IReadOnlyList<Lesson> lessons, string? critique, string? prior, int attempt, CancellationToken ct)
             => Llm.Plain(Llm.WithLessons(
-                "You are a senior front-end engineer. Build ONE complete, self-contained, responsive HTML document (inline <style> CSS) for the brief. Include EVERY section requested. Return only the HTML.",
+                "You are a senior front-end engineer. Build ONE complete, self-contained, responsive HTML document (inline <style> CSS) for the brief, matching the target design exactly. Return only the HTML.",
                 lessons, critique), _t.Prompt, 0, ct);
         public Reward Evaluate(string draft, AgentContext ctx)
         {
-            var missing = Missing(draft);
-            var score = (double)(Spec.Length - missing.Count) / Spec.Length;
-            var ok = missing.Count == 0 && draft.Contains('<');
-            return new Reward(ok, Math.Round(score, 3), new Dictionary<string, double> { ["coverage"] = score },
-                ok ? new HashSet<string>() : new HashSet<string> { "INCOMPLETE_UI" },
-                ok ? "" : "The page is missing: " + string.Join(", ", missing) + ". Add these and return the FULL HTML document.");
+            var misses = Misses(draft);
+            var score = (double)(Fidelity.Length - misses.Count) / Fidelity.Length;
+            var ok = misses.Count == 0 && draft.Contains('<');
+            var crit = ok ? "" : "To match the target design, fix these: "
+                + string.Join(" ", misses.Select(m => Fidelity.First(f => f.Trigger == m).Lesson));
+            return new Reward(ok, Math.Round(score, 3), new Dictionary<string, double> { ["fidelity"] = score }, misses.ToHashSet(), crit);
         }
-        public Lesson? LessonFor(string trigger, AgentContext ctx) => new Lesson
+        public Lesson? LessonFor(string trigger, AgentContext ctx)
         {
-            Id = "cmp-ui|frontend|INCOMPLETE_UI", Agent = "cmp-ui", Sector = "frontend", Trigger = "INCOMPLETE_UI",
-            Condition = "reproducing a component from a design brief",
-            Warning = "Reproduce EVERY element of the card: the titled header with its icon, the 5-star rating, the review textarea with its placeholder, BOTH buttons (Rewrite with AI + Save), the violet theme, rounded corners, a soft shadow, a decorative accent, and responsive @media CSS. Never return a partial card.",
-        };
+            var f = Fidelity.FirstOrDefault(x => x.Trigger == trigger);
+            return f.Trigger is null ? null : new Lesson
+            {
+                Id = $"cmp-ui|frontend|{trigger}", Agent = "cmp-ui", Sector = "frontend", Trigger = trigger,
+                Condition = "reproducing the Review-for-Candidate card design",
+                Warning = f.Lesson,
+            };
+        }
     }
 }
 

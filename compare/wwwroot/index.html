@@ -44,8 +44,13 @@
   .runline{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin:1.1rem 0 0}
   .runs{font-family:var(--mono);font-size:.8rem;color:var(--faint)}
 
-  .cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.4rem 0 0}
-  @media (max-width:44rem){.cols{grid-template-columns:1fr}}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr));gap:1rem;margin:1.4rem 0 0}
+  .lessons{border:1px solid var(--line);border-radius:.7rem;background:var(--panel);padding:.85rem 1rem;margin:1.1rem 0 0}
+  .lessons ul{margin:.5rem 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.5rem}
+  .lessons li{font-size:.85rem;color:var(--dim);display:flex;gap:.5rem;align-items:baseline}
+  .tchip{font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;padding:.1rem .45rem;border-radius:1rem;border:1px solid;flex:none}
+  .tchip.v{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 45%,transparent)}
+  .tchip.p{color:var(--warn);border-color:color-mix(in oklab,var(--warn) 45%,transparent)}
   .col{border:1px solid var(--line);border-radius:.7rem;background:var(--panel);overflow:hidden;display:flex;flex-direction:column}
   .col.harness{border-color:color-mix(in oklab,var(--accent) 40%,var(--line))}
   .col h2{margin:0;font-size:.95rem;padding:.85rem 1rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.5rem}
@@ -102,25 +107,10 @@
     <img id="targetImg" alt="Figma target design">
   </div>
 
-  <div class="cols">
-    <div class="col">
-      <h2>Foundry playground <span class="k">bare · no memory</span></h2>
-      <div class="body">
-        <div class="answer placeholder" id="bareAns">— run to compare —</div>
-        <div class="verdict" id="bareVerdict"></div>
-        <div class="meta" id="bareMeta"></div>
-      </div>
-    </div>
-    <div class="col harness">
-      <h2>Growing-agent harness <span class="k">reward + memory</span></h2>
-      <div class="body">
-        <div class="answer placeholder" id="harnAns">— run to compare —</div>
-        <div class="verdict" id="harnVerdict"></div>
-        <div class="learn" id="harnLearn" style="display:none"></div>
-        <div class="meta" id="harnMeta"></div>
-      </div>
-    </div>
+  <div class="cols" id="cols">
+    <div class="col"><div class="body"><div class="answer placeholder">— run to compare —</div></div></div>
   </div>
+  <div class="lessons" id="lessonsPanel" style="display:none"></div>
 
   <footer>gpt-4.1-mini · Azure AI Foundry · the harness is off-the-shelf; only the reward changes per domain</footer>
 </div>
@@ -155,17 +145,16 @@ function updateTarget(){
   } else { p.style.display='none'; }
 }
 function clearPanels(){
-  $('bareAns').className='answer placeholder'; $('bareAns').textContent='— run to compare —';
-  $('harnAns').className='answer placeholder'; $('harnAns').textContent='— run to compare —';
-  $('bareVerdict').innerHTML=''; $('harnVerdict').innerHTML='';
-  $('bareMeta').innerHTML=''; $('harnMeta').innerHTML=''; $('harnLearn').style.display='none';
+  $('cols').innerHTML='<div class="col"><div class="body"><div class="answer placeholder">— run to compare —</div></div></div>';
+  $('lessonsPanel').style.display='none';
 }
-function chip(pass,label){ return `<span class="chip ${pass?'pass':'fail'}">${label||(pass?'correct ✓':'wrong ✗')}</span>`; }
-function verdict(x,isUi){
-  if(isUi) return chip(x.pass, x.pass?'complete ✓':'incomplete ✗') + `<span class="cov">coverage ${Math.round((x.score||0)*100)}%</span>`;
-  return chip(x.pass);
+function chip(pass,label){ return `<span class="chip ${pass?'pass':'fail'}">${label}</span>`; }
+function verdictHtml(d,isUi){
+  const label = isUi ? (d.pass?'match ✓':'partial ✗') : (d.pass?'correct ✓':'wrong ✗');
+  const c = chip(d.pass,label);
+  return isUi ? c+`<span class="cov">design-match ${Math.round((d.score||0)*100)}%</span>` : c;
 }
-function renderAns(el, html, isUi){
+function renderInto(el, html, isUi){
   el.className='answer'; el.innerHTML='';
   if(isUi){
     const f=document.createElement('iframe'); f.className='preview'; f.setAttribute('sandbox',''); f.srcdoc = html || '<em>empty</em>';
@@ -174,6 +163,7 @@ function renderAns(el, html, isUi){
     const p=document.createElement('pre'); p.textContent = html || ''; d.appendChild(s); d.appendChild(p); el.appendChild(d);
   } else { el.textContent = html || '(no answer)'; }
 }
+function esc(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
 async function run(){
   $('runBtn').disabled=true; $('runBtn').textContent='Running…';
@@ -182,23 +172,34 @@ async function run(){
       body:JSON.stringify({domain:DOM[cur].key, task:+$('taskSel').value})})).json();
     runCount++;
     $('runs').textContent = `run #${runCount} on this memory · Run again to reuse what the harness learned`;
-
     const isUi = DOM[cur].key==='ui';
-    renderAns($('bareAns'), r.bare.answer, isUi);
-    $('bareVerdict').innerHTML = verdict(r.bare, isUi);
-    $('bareMeta').innerHTML = `<span>1 model call</span><span>no memory · nothing carries to the next run</span>`;
-
-    renderAns($('harnAns'), r.harness.answer, isUi);
-    $('harnVerdict').innerHTML = verdict(r.harness, isUi) + (r.harness.escalated?'<span class="chip">escalated</span>':'');
     const used = r.harness.injected.length, learned = r.harness.learned.length;
-    let ln='';
-    if(learned) ln = `<span class="l">learned</span> a lesson this run — it will apply next time`;
-    else if(used) ln = `<span class="l">recalled</span> ${used} lesson${used>1?'s':''} — applied first try`;
-    if(ln){ $('harnLearn').style.display='block'; $('harnLearn').innerHTML=ln; } else $('harnLearn').style.display='none';
-    $('harnMeta').innerHTML = `<span><b>${r.harness.iterations}</b> iteration${r.harness.iterations>1?'s':''}</span>`
-      + `<span><b>${r.harness.generations}</b> model call${r.harness.generations>1?'s':''}</span>`
-      + `<span>recalled <b>${used}</b> · learned <b>${learned}</b></span>`;
-  }catch(e){ $('harnAns').className='answer'; $('harnAns').textContent='error: '+e.message; }
+
+    const panels = [{label:'Foundry playground', tag:'bare · no memory', d:r.bare, meta:'1 model call · no memory'}];
+    if(r.cold) panels.push({label:'Harness — cold', tag:'no lessons yet', d:r.cold, meta:'the spec, but nothing learned yet'});
+    panels.push({label: r.cold?'Harness — learned':'Growing-agent harness', tag:'reward + memory', d:r.harness, harness:true,
+      note: learned? `learned ${learned} lesson${learned>1?'s':''} this run` : (used? `recalled ${used} lesson${used>1?'s':''} — applied first try` : ''),
+      meta:`${r.harness.iterations} iter · ${r.harness.generations} calls · recalled ${used} · learned ${learned}`});
+
+    const cols = $('cols'); cols.innerHTML='';
+    for(const p of panels){
+      const col=document.createElement('div'); col.className='col'+(p.harness?' harness':'');
+      col.innerHTML=`<h2>${p.label} <span class="k">${p.tag}</span></h2><div class="body">`
+        +`<div class="answer"></div><div class="verdict"></div>`
+        +`${p.note?`<div class="learn"><span class="l">✓</span> ${p.note}</div>`:''}<div class="meta">${p.meta}</div></div>`;
+      renderInto(col.querySelector('.answer'), p.d.answer, isUi);
+      col.querySelector('.verdict').innerHTML = verdictHtml(p.d, isUi)
+        + (p.harness && r.harness.escalated ? '<span class="chip fail">escalated</span>' : '');
+      cols.appendChild(col);
+    }
+
+    const lp=$('lessonsPanel');
+    if(r.lessons && r.lessons.length){
+      lp.style.display='block';
+      lp.innerHTML=`<p class="tlabel">Lessons the harness has learned (${r.lessons.length})</p><ul>`
+        + r.lessons.map(l=>`<li><span class="tchip ${l.trust==='Verified'?'v':'p'}">${l.trust}</span> ${esc(l.warning)}</li>`).join('')+'</ul>';
+    } else lp.style.display='none';
+  }catch(e){ $('cols').innerHTML='<div class="col"><div class="body"><div class="answer">error: '+esc(e.message)+'</div></div></div>'; }
   finally{ $('runBtn').disabled=false; $('runBtn').textContent='Run again'; }
 }
 

@@ -46,20 +46,36 @@ app.MapPost("/api/compare", async (HttpRequest req) =>
         Input = new JsonObject { ["task"] = task.Prompt },
         AllowedSources = task.Sources,
     };
-    var opt = new HarnessOptions(MaxIters: 3, Threshold: 1.0, RetrieveTopK: 3, Samples: domain.Samples);
+    var opt = new HarnessOptions(MaxIters: domain.MaxIters, Threshold: 1.0, RetrieveTopK: 3, Samples: domain.Samples);
 
     // (1) bare — the playground: same task, one shot, no reward loop / memory / tools.
     var bare = StripFence(await domain.BareAsync(task, ct));
     var bareR = domain.NewAgent(task).Evaluate(bare, ctx);
 
-    // (2) harness — the real loop + the persistent lesson memory (shared across runs → it compounds).
+    // (2) harness COLD (three-way only) — the harness's own generation with NO learned lessons, one shot.
+    // Isolates the value of the MEMORY: this is what the harness produces before it has learned anything.
+    object? cold = null;
+    if (domain.ThreeWay)
+    {
+        var coldDraft = StripFence(await domain.NewAgent(task).GenerateAsync(ctx, Array.Empty<Lesson>(), null, null, 0, ct));
+        var coldR = domain.NewAgent(task).Evaluate(coldDraft, ctx);
+        cold = new { answer = coldDraft, pass = coldR.Pass, score = coldR.Score };
+    }
+
+    // (3) harness LEARNED — the real loop + persistent memory: recalls what it knows, learns what it missed.
     var harness = new AgentHarness(store, critic: domain.SelfVerify ? new LlmCritic() : null);
     var o = await harness.RunAsync(domain.NewAgent(task), ctx, opt, ct);
+
+    // Everything this agent has learned so far (shown each run).
+    var agentId = domain.NewAgent(task).Id;
+    var lessons = (await store.AllAsync()).Where(l => l.Agent == agentId)
+        .Select(l => new { warning = l.Warning, trust = l.Trust.ToString() }).ToList();
 
     return Results.Json(new
     {
         live = Model.Enabled, model = Model.Name,
         bare = new { answer = bare, pass = bareR.Pass, score = bareR.Score },
+        cold,
         harness = new
         {
             answer = StripFence(o.BestDraft ?? ""), pass = o.Best.Pass, score = o.Best.Score,
@@ -67,6 +83,7 @@ app.MapPost("/api/compare", async (HttpRequest req) =>
             injected = o.InjectedLessons, learned = o.LearnedLessons,
             critique = o.Best.Critique,
         },
+        lessons,
     });
 });
 
