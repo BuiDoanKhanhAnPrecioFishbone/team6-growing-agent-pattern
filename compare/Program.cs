@@ -11,10 +11,16 @@ Model.Configure();
 var storePath = Path.Combine(AppContext.BaseDirectory, "compare-lessons.json");
 var store = new SemanticLessonStore(storePath);
 
-// Load the local Figma target (gitignored) so the UI agent can ground generation in the actual image.
-var targetPng = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "target.png");
+// Load the local Figma target (gitignored) so the UI agent can ground generation:
+//   target.png          — the design screenshot (tier 1, multimodal)
+//   target-context.txt  — exact design tokens from get_design_context (tier 2, precise)
+var wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+var targetPng = Path.Combine(wwwroot, "target.png");
 if (File.Exists(targetPng))
     UiTarget.ImageDataUrl = "data:image/png;base64," + Convert.ToBase64String(File.ReadAllBytes(targetPng));
+var targetCtx = Path.Combine(wwwroot, "target-context.txt");
+if (File.Exists(targetCtx))
+    UiTarget.DesignContext = File.ReadAllText(targetCtx);
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();

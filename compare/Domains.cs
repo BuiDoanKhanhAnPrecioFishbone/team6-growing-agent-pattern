@@ -8,9 +8,11 @@ namespace Compare;
 // A demo task in some domain, with the reward key kept OUT of the model's prompt (so it can't cheat).
 public sealed record DemoTask(string Prompt, string[] Sources, string[] Accept, string Note);
 
-// The Figma target as a data URL (loaded from the local, gitignored wwwroot/target.png at startup).
-// When present, the UI agent GROUNDS generation in the actual image (multimodal). Null → text-only.
-public static class UiTarget { public static string? ImageDataUrl; }
+// The Figma target, loaded from the local, gitignored wwwroot/ at startup:
+//   ImageDataUrl   — the design screenshot (multimodal grounding, tier 1)
+//   DesignContext  — the EXACT tokens/structure from get_design_context (precise grounding, tier 2)
+// Both null in the public repo → text-only generation.
+public static class UiTarget { public static string? ImageDataUrl; public static string? DesignContext; }
 
 // One domain the comparison can run. Each provides sample tasks, a harness agent (reward + generation),
 // and the "bare" baseline — the honest playground: the SAME task, one shot, no loop / memory / tools.
@@ -38,12 +40,13 @@ public sealed class VisionCritic : ICritic
     public async Task<string?> CritiqueAsync(AgentContext ctx, string draft, Reward reward, CancellationToken ct)
     {
         if (UiTarget.ImageDataUrl is null || !ToolLoop.Enabled) return null;
-        const string sys =
+        var sys =
             "You are a senior UI engineer reviewing an implementation against a TARGET design (the attached image). "
+            + (UiTarget.DesignContext is { Length: > 0 } dc ? "The target's EXACT tokens are:\n" + dc + "\n" : "")
             + "Compare the CANDIDATE HTML/CSS to the target and list ONLY concrete, actionable fixes so it matches the "
-            + "target — visual (colors, spacing, the star widget's look — bare stars, NOT boxed; button styles and order) "
-            + "AND behavioural (hover/click on the stars sets the rating; the Save button is disabled until a rating and "
-            + "review exist). Terse bullet points. If it already matches the target well, reply with exactly: OK";
+            + "target — visual (exact colors/fonts/spacing/radii, the star widget's look — bare stars, NOT boxed; button "
+            + "styles and order) AND behavioural (hover/click on the stars sets the rating; the Save button is disabled "
+            + "until a rating and review exist). Terse bullet points. If it already matches the target well, reply with exactly: OK";
         try
         {
             var verdict = (await ToolLoop.CompleteVisionAsync(sys, "CANDIDATE HTML:\n" + draft, UiTarget.ImageDataUrl, 0, ct)).Trim();
@@ -237,8 +240,8 @@ public sealed class UiDomain : IDomain
     // Fidelity to the Figma frame: (trigger, keywords that prove the token is present, the lesson to learn).
     static readonly (string Trigger, string[] Kw, string Lesson)[] Fidelity =
     {
-        ("VIOLET",      new[]{"#6d28d9","#7c3aed","#6366f1","#5b21b6","#4f46e5","#8b5cf6","#a855f7","#9333ea","#7e22ce","#4338ca","#6b21a8","violet","indigo","purple","rebeccapurple"},
-            "Use a violet/indigo accent (about #6d28d9) for the title and the primary button."),
+        ("VIOLET",      new[]{"#6f42c1","#6d28d9","#7c3aed","#6366f1","#5b21b6","#4f46e5","#8b5cf6","#a855f7","#9333ea","#7e22ce","#4338ca","#6b21a8","#977dff","violet","indigo","purple","rebeccapurple"},
+            "Use the exact violet accent #6f42c1 for the title and the primary (Save) button."),
         ("STARS",       new[]{"★","☆","&#9733","&#9734","fa-star"},
             "Show the rating as five stars (★ ☆), not a dropdown or a number field."),
         ("ICON",        new[]{"💬","&#128172","speech-bubble","speech bubble"},
@@ -287,14 +290,17 @@ public sealed class UiDomain : IDomain
         public string Id => "cmp-ui";
         public Task<string> GenerateAsync(AgentContext ctx, IReadOnlyList<Lesson> lessons, string? critique, string? prior, int attempt, CancellationToken ct)
         {
-            // Layer 1 — multimodal grounding: if the Figma target image is available, generate FROM the image.
+            // Layers 1+2 — grounding: reproduce FROM the image, using the EXACT design tokens when available.
             if (UiTarget.ImageDataUrl is not null && ToolLoop.Enabled)
-                return ToolLoop.CompleteVisionAsync(
-                    "You are a senior front-end engineer. Reproduce the UI in the attached image as ONE complete, "
-                    + "self-contained, responsive HTML document (inline <style> CSS). Match its exact colors, layout, "
-                    + "the star-rating widget, the header icon, the button labels, the button order and their styles as "
-                    + "closely as you can. Return only the HTML.",
-                    Llm.WithLessons(_t.Prompt, lessons, critique), UiTarget.ImageDataUrl, 0, ct);
+            {
+                var sys = "You are a senior front-end engineer. Reproduce the UI in the attached image as ONE complete, "
+                        + "self-contained, responsive HTML document (inline <style> CSS). "
+                        + (UiTarget.DesignContext is { Length: > 0 } dc
+                            ? "Use these EXACT design tokens from the design system — apply them precisely, do not approximate:\n" + dc + "\n"
+                            : "Match its colors, layout, the star widget, the header icon, the button labels, button order and styles as closely as you can.\n")
+                        + "Return only the HTML.";
+                return ToolLoop.CompleteVisionAsync(sys, Llm.WithLessons(_t.Prompt, lessons, critique), UiTarget.ImageDataUrl, 0, ct);
+            }
 
             return Llm.Plain(Llm.WithLessons(
                 "You are a senior front-end engineer. Build ONE complete, self-contained, responsive HTML document (inline <style> CSS) for the brief, matching the target design exactly. Return only the HTML.",
