@@ -78,14 +78,16 @@ dotnet run --project flywheel                    # ART flywheel: runs → SFT/pr
 # live · set AGENT_LLM_* first
 dotnet run --project ampeval                     # grounding: bare 5/6 → +web_search 6/6
 dotnet run --project ctxdemo                     # context: compaction recalls, truncation forgets
-dotnet run --project costbench                    # cost thesis: mini+harness quality & $ vs a frontier model
+dotnet run --project costbench                    # quality & $ head-to-head: mini vs mini+harness vs frontier
+dotnet run --project escbench                     # cost-optimized: escalation — frontier quality at ~72% cost
 ```
 
-**The cost thesis** (`costbench/`): on reasoning traps, measures quality **and real token cost** four ways —
-bare mini, mini+harness (cold, then warm), and a frontier model (`AGENT_LLM_MODEL_STRONG`). The claim it
-tests: mini+harness ≈ frontier *quality*, and while the frontier costs the same every time, the harness gets
-**cheaper run-over-run as it learns** (memory → fewer iterations). Backed by a `CostLedger` that records every
-call's token `usage`.
+**The cost thesis** (`costbench/`, `escbench/`): measured on hard reasoning traps with a `CostLedger` that
+records every call's token `usage`. **Quality** — mini+harness matches the frontier (**10/15 = gpt-5.1's
+10/15**; even gpt-5.1 solves only 10). **Cost** — the honest lever is **escalation**: run mini+harness and let
+the reward escalate to gpt-5.1 *only* on the tasks it can't crack → frontier quality at **~72% of
+always-frontier cost**, paying the premium on just **6/15**. (We measured and *retired* an earlier
+"cheaper as it learns" claim once the rigorous run didn't support it — the standing claim is escalation.)
 
 ### Run a single agent as its own service
 

@@ -1,7 +1,7 @@
 # Pitch — The Growing-Agent Pattern · team6 · Omnia-PF-Hackathon-2026
 
 ## The one line
-> **A cheap model plus a good harness performs like a frontier one — and gets *cheaper* as it learns.**
+> **A cheap model plus a good harness performs like a frontier one — at a fraction of the price.**
 
 Everything below is backed by a program you can run in the repo.
 
@@ -33,7 +33,8 @@ substrate:
 **The proof (measured, not asserted).**
 | Claim | Result | Program |
 |---|---|---|
-| Cheap model + harness ≈ **frontier** | mini+harness **4/5 = gpt-5.1 4/5**, at ~**79%** of gpt-5.1's cost *and dropping as it learns* | `costbench` |
+| Cheap model matches **frontier** | mini+harness **10/15 = gpt-5.1's 10/15** on hard reasoning (even gpt-5.1 solves only 10) | `costbench` |
+| Cost-optimized via **escalation** | frontier quality at **72%** of always-frontier cost — gpt-5.1 premium on only **6/15** tasks | `escbench` |
 | Learns on a **real reward** | code solved first-try **80% with memory vs 0% without** | `codeagent` |
 | Memory that **scales** | semantic retrieval **1.000** while exact-match collapses to 0 as noise grows | `abeval` |
 | **Grounding** beats guessing | bare **5/6 → 6/6** with `web_search` (fixed a post-cutoff fact) | `ampeval` |
@@ -42,8 +43,8 @@ substrate:
 | **Training-ready** | every run exports SFT / preference / RL data | `flywheel` |
 
 **Why it matters for Precio Fishbone / Omnia.**
-- **Cheaper AI at scale** — run gpt-4.1-mini everywhere, reach frontier quality only where a task needs it,
-  and get *cheaper over time* as agents learn. Frontier models never do that.
+- **Cheaper AI at scale** — run gpt-4.1-mini everywhere and let the reward **escalate to a frontier model
+  only where a task actually needs it**: frontier quality at a fraction of always-frontier cost.
 - **Agents that learn from your experts** — a reviewer rejecting an answer and stating the rule becomes a
   durable, trusted lesson the agent applies next time. Knowledge work compounds.
 - **Deployable today** — plain Foundry endpoint; Cosmos DB backing with server-side vector search; the
@@ -78,11 +79,12 @@ model* through our harness. Watch what the harness adds."
   **learns to call web_search**, answers 'Greg Abel'." Click **Run again** → "recalled, right first try."
 - One line: "Same machinery, different reward — finance, code, reasoning, UI. It's *domain-agnostic*."
 
-**[3:00 · 90s] The money slide — cost.**
+**[3:00 · 90s] The money slide — cost via escalation.**
 - Scroll to the **Cost thesis** panel. Click **Measure cost**.
-- Read the table: "Same reasoning problems. Bare mini is cheap but wrong. Our harness **matches gpt-5.1's
-  quality** — and while gpt-5.1 costs the same every single time, **we get cheaper as we learn**."
-- The line: "Frontier quality, a fraction of the cost, and the cost keeps *falling*."
+- Read the table: "Same reasoning problems. **Always paying gpt-5.1** solves 10/15 at full price. **Cheap-first
+  + escalate** — mini+harness, and the reward escalates to gpt-5.1 only on the ones it can't crack — hits the
+  **same 10/15 at ~72% of the cost**, paying the premium on just 6 of 15 tasks."
+- The line: "Frontier quality. You pay the frontier price only where you must."
 
 **[4:30 · 30s] Close + the future.**
 "No GPU, no fine-tuning, on Azure Foundry today. And every run we just did quietly exported training data —
@@ -104,10 +106,12 @@ offline proofs — `dotnet run --project flywheel` / `orchestrator -- --fresh` a
 - **"100% match to Figma?"** No — we report *design-elements matched* (a checklist) and are explicit it's not
   pixel-identical. For pixel-perfect production code, that's Figma Code Connect — a different, deterministic
   tool. The harness is for *learning*, not exact export.
-- **"Small sample on the cost number?"** Yes (n=5 in the console) — directionally strong; a bigger suite
-  firms it. Token counts are exact; prices are configurable to your real Azure rates.
-- **"Why not just use the frontier model?"** Cost that never drops, and a hard dependency. Ours reaches the
-  same quality on a cheap model, gets cheaper with use, and degrades gracefully offline.
+- **"Is the cost number robust?"** It's a 15-task suite (`escbench`) with exact token counts; prices are
+  configurable to your real Azure rates. We *retired* an earlier "gets cheaper as it learns" claim once the
+  rigorous run didn't support it — the honest, standing claim is escalation: same quality, ~72% of cost.
+- **"Why not just use the frontier model?"** A hard dependency you pay for on every call. Escalation reaches
+  the same quality on a cheap model you control, paying the premium only where needed — and it degrades
+  gracefully offline.
 
 ---
 

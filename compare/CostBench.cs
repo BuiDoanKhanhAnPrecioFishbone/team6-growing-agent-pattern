@@ -4,9 +4,10 @@ using AIAssistant.Harness;
 
 namespace Compare;
 
-// Live cost comparison for the UI: quality + real $ for bare-mini / mini+harness (cold, then warm) /
-// frontier, on a small reasoning-trap suite (kept short so the UI run is bearable). The rigorous, larger
-// version is the costbench console.
+// Live cost comparison for the UI — the honest cost-optimization lever: ESCALATION. Instead of paying the
+// frontier price on every call, run a cheap first pass (mini+harness) and escalate to the frontier (gpt-5.1)
+// ONLY on the tasks it fails — the reward decides. Frontier quality, a fraction of the cost. Mini and frontier
+// tokens are metered separately for an exact $. The rigorous, larger version is the escbench console.
 public static class CostRun
 {
     private static readonly (string Q, string[] A)[] Suite =
@@ -36,52 +37,46 @@ public static class CostRun
         double P(string k, double d) => double.TryParse(Environment.GetEnvironmentVariable(k), out var v) ? v : d;
         double miniIn = P("AGENT_PRICE_IN", 0.40), miniOut = P("AGENT_PRICE_OUT", 1.60);
         double frIn = P("AGENT_PRICE_STRONG_IN", 1.25), frOut = P("AGENT_PRICE_STRONG_OUT", 10.0);
+        double Mini((long p, long c) u) => Dollars(u, miniIn, miniOut);
+        double Fr((long p, long c) u) => Dollars(u, frIn, frOut);
         int N = Suite.Length;
 
-        // bare mini — one shot each
-        CostLedger.Reset(); int bareOk = 0;
-        foreach (var t in Suite) if (Hit(await ToolLoop.CompleteAsync(Sys, t.Q, 0, ct), t.A)) bareOk++;
-        var bareC = Dollars(CostLedger.Snapshot(), miniIn, miniOut);
+        if (string.IsNullOrWhiteSpace(strong))
+            return new { total = N, modes = Array.Empty<object>(), frontier = false,
+                headline = "Set AGENT_LLM_MODEL_STRONG (e.g. gpt-5.1) to run the escalation cost comparison." };
 
-        // mini + harness — fresh memory, run the suite cold then warm
+        // 1) always-frontier — pay gpt-5.1 on everything
+        CostLedger.Reset(); int fQ = 0;
+        foreach (var t in Suite) if (Hit(await ToolLoop.CompleteAsync(Sys, t.Q, 0, ct, strong), t.A)) fQ++;
+        var fCost = Fr(CostLedger.Snapshot());
+
+        // 2) cheap-first + escalate — mini+harness; on reward-fail, escalate to the frontier
         var path = Path.Combine(Path.GetTempPath(), "compare-cost-" + Guid.NewGuid().ToString("N") + ".json");
         var harness = new AgentHarness(new SemanticLessonStore(path));
-        var opt = new HarnessOptions(MaxIters: 2, Threshold: 1.0, RetrieveTopK: 3, Samples: 2);
-        async Task<(int ok, double cost)> Pass()
+        var opt = new HarnessOptions(MaxIters: 2, Threshold: 1.0, RetrieveTopK: 3, Samples: 1);
+        double eMini = 0, eFr = 0; int eQ = 0, eEsc = 0;
+        foreach (var t in Suite)
         {
-            CostLedger.Reset(); int ok = 0;
-            foreach (var t in Suite) if ((await harness.RunAsync(new RAgent(t.Q, t.A), Ctx(t.Q), opt, ct)).Best.Pass) ok++;
-            return (ok, Dollars(CostLedger.Snapshot(), miniIn, miniOut));
+            CostLedger.Reset();
+            var o = await harness.RunAsync(new RAgent(t.Q, t.A), Ctx(t.Q), opt, ct);
+            eMini += Mini(CostLedger.Snapshot());
+            if (o.Best.Pass) eQ++;
+            else { eEsc++; CostLedger.Reset(); var f = await ToolLoop.CompleteAsync(Sys, t.Q, 0, ct, strong); eFr += Fr(CostLedger.Snapshot()); if (Hit(f, t.A)) eQ++; }
         }
-        var (h1ok, h1c) = await Pass();
-        var (h2ok, h2c) = await Pass();
         try { File.Delete(path); } catch { /* temp */ }
+        var eCost = eMini + eFr;
 
-        // frontier — one shot each with the bigger model (if configured)
-        int frOk = -1; double frC = 0;
-        if (!string.IsNullOrWhiteSpace(strong))
+        var modes = new object[]
         {
-            CostLedger.Reset(); frOk = 0;
-            foreach (var t in Suite) if (Hit(await ToolLoop.CompleteAsync(Sys, t.Q, 0, ct, strong), t.A)) frOk++;
-            frC = Dollars(CostLedger.Snapshot(), frIn, frOut);
-        }
-
-        var modes = new List<object>
-        {
-            new { name = "bare mini", quality = bareOk, cost = bareC, kind = "bare" },
-            new { name = "mini + harness · cold", quality = h1ok, cost = h1c, kind = "harness" },
-            new { name = "mini + harness · warm", quality = h2ok, cost = h2c, kind = "harness" },
+            new { name = "always " + strong, quality = fQ, cost = fCost, kind = "frontier" },
+            new { name = "cheap-first + escalate", quality = eQ, cost = eCost, kind = "harness" },
         };
-        if (frOk >= 0) modes.Add(new { name = "frontier · " + strong, quality = frOk, cost = frC, kind = "frontier" });
-
-        var headline = frOk >= 0
-            ? $"mini+harness {(h2ok >= frOk ? "matches" : $"scores {h2ok}/{N} vs {frOk}/{N} on")} frontier quality at ~{(frC > 0 ? h2c / frC * 100 : 0):0}% of its cost once warm — and unlike the frontier, it keeps getting cheaper as it learns."
-            : $"the harness got {(h1c > 0 ? (1 - h2c / h1c) * 100 : 0):0}% cheaper from cold → warm as it learned. Set AGENT_LLM_MODEL_STRONG for the frontier column.";
-
-        return new { total = N, modes, headline, frontier = frOk >= 0 };
+        var pct = fCost > 0 ? eCost / fCost * 100 : 0;
+        var headline = $"cheap-first + escalate reaches {eQ}/{N} (frontier: {fQ}/{N}) at ~{pct:0}% of always-frontier cost — paying the {strong} premium on only {eEsc}/{N} tasks. The reward decides when.";
+        return new { total = N, modes, headline, frontier = true };
     }
 
-    // The reasoning agent (answer-check reward + step-by-step, best-of-N via the harness).
+    // The reasoning agent (answer-check reward + step-by-step; cheap config, Samples=1).
     private sealed class RAgent : IAgent
     {
         private readonly string _q; private readonly string[] _a;
@@ -92,7 +87,7 @@ public static class CostRun
             var sys = Sys;
             if (lessons.Count > 0) sys += "\nLessons you have learned (apply them):" + string.Concat(lessons.Select(l => "\n• " + l.Warning));
             if (!string.IsNullOrWhiteSpace(critique)) sys += "\nYour previous answer was wrong — fix it:\n" + critique;
-            return ToolLoop.CompleteAsync(sys, _q, attempt == 0 ? 0.2 : 0.8, ct);
+            return ToolLoop.CompleteAsync(sys, _q, 0, ct);
         }
         public Reward Evaluate(string draft, AgentContext ctx)
         {
@@ -104,7 +99,7 @@ public static class CostRun
         public Lesson? LessonFor(string trigger, AgentContext ctx) => new Lesson
         {
             Id = "cmp-cost-reason|reason|WRONG_ANSWER", Agent = "cmp-cost-reason", Sector = "reason", Trigger = "WRONG_ANSWER",
-            Condition = "a word problem that looks simple but hides a trap",
+            Condition = "a word problem that hides a trap",
             Warning = "Do not answer word problems from intuition. Write the equations, solve step by step, and re-check the final number against the wording before answering.",
         };
     }

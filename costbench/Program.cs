@@ -102,14 +102,14 @@ if (!string.IsNullOrWhiteSpace(frontier))
 // ── report ──
 double bareC = Dollars(bareU, miniIn, miniOut), h1C = Dollars(h1u, miniIn, miniOut), h2C = Dollars(h2u, miniIn, miniOut);
 double frC = frOk >= 0 ? Dollars(frU, frIn, frOut) : 0;
-string Row(string name, int ok, double cost) => $"{name,-22} {ok}/{N,-6} ${cost:0.00000}";
+string Row(string name, int ok, double cost, (long p, long c) u) => $"{name,-24} {ok}/{N,-5} ${cost:0.00000}  {u.p,7}+{u.c,-6} tok";
 
-Console.WriteLine($"{"mode",-22} {"quality",-8} cost (real tokens × price)");
-Console.WriteLine(new string('─', 58));
-Console.WriteLine(Row("bare mini", bareOk, bareC));
-Console.WriteLine(Row("mini + harness (r1)", h1ok, h1C));
-Console.WriteLine(Row("mini + harness (r2)", h2ok, h2C) + (h2C < h1C ? "  ← cheaper: it learned" : ""));
-if (frOk >= 0) Console.WriteLine(Row("frontier", frOk, frC));
+Console.WriteLine($"{"mode",-24} {"qual",-5} {"cost $",-11} tokens (in + out)");
+Console.WriteLine(new string('─', 64));
+Console.WriteLine(Row("bare mini", bareOk, bareC, bareU));
+Console.WriteLine(Row("mini + harness (r1)", h1ok, h1C, h1u));
+Console.WriteLine(Row("mini + harness (r2)", h2ok, h2C, h2u) + (h2C < h1C ? "  ← learned" : ""));
+if (frOk >= 0) Console.WriteLine(Row("frontier", frOk, frC, frU));
 Console.WriteLine();
 
 if (frOk >= 0)

@@ -83,7 +83,7 @@
 <!-- 1 · TITLE -->
 <section class="slide">
   <p class="eyebrow"><span class="n">team6</span> Omnia-PF-Hackathon-2026</p>
-  <h1>A cheap model plus a good harness <span class="hl">performs like a frontier one —</span> and gets cheaper as it learns.</h1>
+  <h1>A cheap model plus a good harness <span class="hl">performs like a frontier one —</span> at a fraction of the price.</h1>
   <p class="lede">The Growing-Agent Pattern — a reusable .NET harness on Azure AI Foundry. No GPU, no
     fine-tuning. Every claim in this deck is a program you can run.</p>
 </section>
@@ -105,7 +105,7 @@
     reward</strong> that gates it now — and could train it later. It improves two ways:</p>
   <div class="grid g2">
     <div class="card"><h3>Within a run <span class="k">inference-time</span></h3><p>sample several drafts, ground with tools, self-verify, and let the reward keep the best.</p></div>
-    <div class="card"><h3>Run-to-run <span class="k">memory</span></h3><p>every fixed mistake becomes a lesson the next run recalls. The pipeline compounds — and cost drops.</p></div>
+    <div class="card"><h3>Run-to-run <span class="k">memory</span></h3><p>every fixed mistake becomes a lesson the next run recalls — the pipeline compounds, and recurring work needs fewer calls.</p></div>
   </div>
 </section>
 
@@ -164,16 +164,14 @@
 
 <!-- 7 · COST (money slide) -->
 <section class="slide">
-  <p class="eyebrow"><span class="n">06</span> The cost thesis · vs gpt-5.1</p>
-  <h2>Frontier quality. <span class="hl">A fraction of the cost. And it keeps falling.</span></h2>
+  <p class="eyebrow"><span class="n">06</span> The cost lever · escalation</p>
+  <h2>Frontier quality — pay the <span class="hl">frontier price only where you must.</span></h2>
   <div class="cost">
-    <div class="crow"><div class="cname">bare mini</div><div class="cbarwrap"><div class="cbar" style="width:29%;background:var(--faint)">$0.00138</div></div><div class="cmeta">3/5 · wrong</div></div>
-    <div class="crow"><div class="cname">mini + harness · cold</div><div class="cbarwrap"><div class="cbar" style="width:100%;background:var(--accent)">$0.00489</div></div><div class="cmeta">4/5</div></div>
-    <div class="crow"><div class="cname">mini + harness · warm</div><div class="cbarwrap"><div class="cbar" style="width:76%;background:var(--accent)">$0.00374</div></div><div class="cmeta">4/5 · learned</div></div>
-    <div class="crow"><div class="cname">frontier · gpt-5.1</div><div class="cbarwrap"><div class="cbar" style="width:97%;background:var(--bad)">$0.00475</div></div><div class="cmeta">4/5 · flat</div></div>
+    <div class="crow"><div class="cname">always gpt-5.1</div><div class="cbarwrap"><div class="cbar" style="width:100%;background:var(--bad)">$0.0136</div></div><div class="cmeta">10/15 · premium on 15/15</div></div>
+    <div class="crow"><div class="cname">cheap-first + escalate</div><div class="cbarwrap"><div class="cbar" style="width:72%;background:var(--accent)">$0.0098</div></div><div class="cmeta">10/15 · premium on 6/15</div></div>
   </div>
-  <p class="punch">mini+harness <strong>matches gpt-5.1's quality</strong> at ~79% of its cost once warm — and unlike gpt-5.1, it gets <strong>cheaper every time it learns.</strong></p>
-  <p class="foot">Reasoning-trap suite via a token-level cost ledger. Prices configurable to your Azure rates; token counts are exact.</p>
+  <p class="punch">Same quality as gpt-5.1 — <strong>10/15, and even gpt-5.1 only solves 10</strong> — at <strong>72% of the cost.</strong> The <strong>reward decides</strong> which few tasks actually need the frontier model.</p>
+  <p class="foot">15 hard reasoning traps · tokens metered per model · exact counts, prices configurable. On easy-heavy real workloads you escalate rarely, so the savings grow.</p>
 </section>
 
 <!-- 8 · WHY OMNIA -->
@@ -193,8 +191,8 @@
   <p class="eyebrow"><span class="n">08</span> The takeaway</p>
   <h2>We didn't build one clever agent. <span class="hl">We built the substrate that makes any cheap-model agent grow.</span></h2>
   <div class="stats">
-    <div class="stat"><b>≈ gpt-5.1</b><span>quality, on gpt-4.1-mini</span></div>
-    <div class="stat"><b>↓ cost</b><span>drops as it learns</span></div>
+    <div class="stat"><b>= gpt-5.1</b><span>quality, on gpt-4.1-mini</span></div>
+    <div class="stat"><b>72%</b><span>cost via escalation</span></div>
     <div class="stat"><b>0 GPU</b><span>plain Azure Foundry</span></div>
     <div class="stat"><b>4</b><span>domains, one harness</span></div>
   </div>
