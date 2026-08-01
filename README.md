@@ -140,6 +140,9 @@ watch the harness side compound while the playground stays flat:
 - **General reasoning** — bare rushes a trick question wrong; **best-of-N + self-verify** work it correctly.
 - **Value-investing** — bare drops a citation; the grounding gate catches it and it **learns to cite only
   provided sources**.
+- **🎓 Teach the agent** — the human-in-the-loop tab: type a rule ("always end with a not-advice
+  disclaimer"), it's stored as a **Verified** lesson, and the agent applies it on the next note — teach a few
+  and watch the output get better. The "agents learn from your experts" story, live.
 
 To keep it honest, "bare" is the harness's *own* first draft with the loop and memory switched off — the
 only variable is the harness. A one-page overview of all results lives at

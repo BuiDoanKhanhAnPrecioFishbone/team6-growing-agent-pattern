@@ -43,6 +43,13 @@ app.MapPost("/api/reset", () => { store.Clear(); return Results.Json(new { ok = 
 // Live cost thesis: quality + real $ for bare / mini+harness (cold, warm) / frontier on a reasoning suite.
 app.MapPost("/api/cost", async (HttpRequest req) => Results.Json(await CostRun.RunAsync(req.HttpContext.RequestAborted)));
 
+// Human-in-the-loop teaching: state a rule → stored as a Verified lesson → the agent applies it next run.
+app.MapPost("/api/teach", async (HttpRequest req) =>
+{
+    var b = (JsonNode.Parse(await new StreamReader(req.Body).ReadToEndAsync()) as JsonObject) ?? new JsonObject();
+    return Results.Json(await TeachRun.RunAsync(b["teach"]?.GetValue<string>(), b["reset"]?.GetValue<bool>() ?? false, req.HttpContext.RequestAborted));
+});
+
 app.MapPost("/api/compare", async (HttpRequest req) =>
 {
     var body = (JsonNode.Parse(await new StreamReader(req.Body).ReadToEndAsync()) as JsonObject) ?? new JsonObject();

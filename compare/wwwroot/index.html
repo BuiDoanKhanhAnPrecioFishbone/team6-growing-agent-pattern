@@ -110,6 +110,8 @@
   </div>
 
   <div class="tabs" id="tabs"></div>
+
+  <div id="domainMode">
   <div class="taskrow">
     <select id="taskSel"></select>
   </div>
@@ -129,6 +131,26 @@
     <div class="col"><div class="body"><div class="answer placeholder">— run to compare —</div></div></div>
   </div>
   <div class="lessons" id="lessonsPanel" style="display:none"></div>
+  </div><!-- /domainMode -->
+
+  <div id="teachPanel" style="display:none">
+    <p class="blurb" id="teachTaskLabel">▹ loading…</p>
+    <div class="cols" style="grid-template-columns:1fr">
+      <div class="col harness">
+        <h2>The agent's note <span class="k">applies every rule you teach it</span></h2>
+        <div class="body"><div class="answer" id="teachOut">— click Generate to see the baseline —</div></div>
+      </div>
+    </div>
+    <div class="taskrow" style="margin-top:1rem;align-items:stretch">
+      <input id="teachInput" placeholder="Teach it a rule, e.g. &ldquo;Always end with a not-advice disclaimer&rdquo;"
+        style="flex:1;min-width:14rem;font-family:var(--sans);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:.5rem;padding:.55rem .8rem;font-size:.9rem">
+      <button class="primary" id="teachBtn">Teach &amp; re-run</button>
+      <button id="teachGen">Generate</button>
+      <button id="teachReset">Reset</button>
+    </div>
+    <p class="runs" style="margin:.6rem 0 0">Type a rule → the agent stores it as a <b>Verified</b> lesson and applies it on the next note. Teach a few and watch the note get better.</p>
+    <div class="lessons" id="teachLessons" style="display:none"></div>
+  </div>
 
   <footer>gpt-4.1-mini · Azure AI Foundry · the harness is off-the-shelf; only the reward changes per domain</footer>
 </div>
@@ -141,8 +163,12 @@ async function load(){
   const d = await (await fetch('/api/domains')).json();
   DOM = d.domains;
   $('modelBadge').innerHTML = `<span class="dot ${d.live?'on':'off'}"></span> same model: <b>${d.model}</b>` + (d.live?'':' · offline mock (set AGENT_LLM_*)');
-  $('tabs').innerHTML = DOM.map((x,i)=>`<span class="tab ${i===0?'active':''}" data-i="${i}">${x.title}</span>`).join('');
-  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{cur=+t.dataset.i;renderTabs();});
+  $('tabs').innerHTML = DOM.map((x,i)=>`<span class="tab ${i===0?'active':''}" data-i="${i}">${x.title}</span>`).join('')
+    + '<span class="tab" data-teach="1">🎓 Teach the agent</span>';
+  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+    if(t.dataset.teach==='1'){ setTeach(true); }
+    else { setTeach(false); cur=+t.dataset.i; renderTabs(); }
+  });
   renderTabs();
 }
 function renderTabs(){
@@ -238,6 +264,34 @@ $('costBtn').onclick=async()=>{
   }catch(e){ $('costOut').innerHTML='<p style="color:var(--bad);font-size:.85rem">error: '+esc(e.message)+'</p>'; }
   finally{ b.disabled=false; b.textContent='Measure cost again'; }
 };
+// ── Teach the agent (human-in-the-loop) ──
+let teachStarted=false;
+function setTeach(on){
+  $('domainMode').style.display = on?'none':'';
+  $('costCard').style.display = on?'none':'';
+  $('teachPanel').style.display = on?'block':'none';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', on ? t.dataset.teach==='1' : false));
+  if(on && !teachStarted){ teachStarted=true; teachRun(); }
+}
+async function teachRun(teach, reset){
+  $('teachOut').textContent='…thinking…';
+  const body={}; if(teach) body.teach=teach; if(reset) body.reset=true;
+  try{
+    const r=await (await fetch('/api/teach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).json();
+    $('teachTaskLabel').textContent='▹ '+r.task;
+    $('teachOut').textContent=r.output||'(no output)';
+    const lp=$('teachLessons');
+    if(r.lessons && r.lessons.length){ lp.style.display='block';
+      lp.innerHTML=`<p class="tlabel">Lessons you've taught (${r.lessons.length}) — applied every run</p><ul>`
+        + r.lessons.map(l=>`<li><span class="tchip v">taught</span> ${esc(l.warning)}</li>`).join('')+'</ul>'; }
+    else lp.style.display='none';
+  }catch(e){ $('teachOut').textContent='error: '+esc(e.message); }
+}
+$('teachBtn').onclick=async()=>{ const v=$('teachInput').value.trim(); if(!v)return; const b=$('teachBtn'); b.disabled=true; b.textContent='Teaching…'; await teachRun(v,false); $('teachInput').value=''; b.disabled=false; b.textContent='Teach & re-run'; };
+$('teachInput').addEventListener('keydown', e=>{ if(e.key==='Enter') $('teachBtn').click(); });
+$('teachGen').onclick=()=>teachRun();
+$('teachReset').onclick=()=>teachRun(null,true);
+
 $('runBtn').onclick=run;
 $('resetBtn').onclick=async()=>{ await fetch('/api/reset',{method:'POST'}); runCount=0; $('runs').textContent='memory wiped · fresh start'; clearPanels(); };
 load();
