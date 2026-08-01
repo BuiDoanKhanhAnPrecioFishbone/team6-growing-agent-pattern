@@ -95,7 +95,7 @@ public interface IAgent
 /// drafts and keeps the one the reward scores highest (best-of-N / inference-time compute). Samples=1 is
 /// the plain single-shot loop — the historical behaviour, so this is drop-in.
 /// </summary>
-public sealed record HarnessOptions(int MaxIters, double Threshold, int RetrieveTopK, int Samples = 1)
+public sealed record HarnessOptions(int MaxIters, double Threshold, int RetrieveTopK, int Samples = 1, int LessonTokens = 0)
 {
     public static HarnessOptions FromEnvironment()
     {
@@ -105,7 +105,9 @@ public sealed record HarnessOptions(int MaxIters, double Threshold, int Retrieve
             MaxIters: Math.Max(1, I("S2_AGENT_MAX_ITERS", 3)),
             Threshold: D("S2_AGENT_THRESHOLD", 0.80),
             RetrieveTopK: Math.Max(1, I("S2_AGENT_RETRIEVE_TOPK", 3)),
-            Samples: Math.Max(1, I("AGENT_SAMPLES", 1)));
+            Samples: Math.Max(1, I("AGENT_SAMPLES", 1)),
+            // Hard token ceiling on injected lessons — a large memory can never swallow the window (0 = off).
+            LessonTokens: I("AGENT_LESSON_TOKENS", 0));
     }
 }
 
@@ -175,8 +177,10 @@ public sealed class AgentHarness
 
     public async Task<HarnessOutcome> RunAsync(IAgent agent, AgentContext ctx, HarnessOptions opt, CancellationToken ct)
     {
-        // ── retrieve: scoped, top-k by hit-rate — never dump the whole memory ──
+        // ── retrieve: scoped, top-k by relevance — never dump the whole memory. Then cap by a token budget
+        //    so even top-k long lessons can't swallow the context window (LessonTokens = 0 ⇒ top-k only). ──
         var injected = await _memory.RetrieveAsync(agent.Id, ctx.Features, opt.RetrieveTopK, ct);
+        injected = Context.FitLessons(injected, opt.LessonTokens);
 
         string? bestDraft = null;
         Reward? best = null;

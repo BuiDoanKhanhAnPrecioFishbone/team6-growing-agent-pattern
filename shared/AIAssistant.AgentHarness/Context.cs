@@ -28,6 +28,25 @@ public static class Context
 {
     /// <summary>Rough GPT-style token estimate (~4 chars/token) — enough for budgeting without a tokenizer.</summary>
     public static int EstimateTokens(string? s) => string.IsNullOrEmpty(s) ? 0 : (s!.Length + 3) / 4;
+
+    /// <summary>
+    /// Cap how many retrieved lessons are actually injected, by a TOKEN budget — so a large memory can never
+    /// swallow the context window. Lessons arrive already ranked by relevance, so we keep the most-relevant
+    /// prefix that fits; at least the top lesson is always kept. <c>maxTokens ≤ 0</c> ⇒ no cap (retrieval's
+    /// top-K already bounds it).
+    /// </summary>
+    public static IReadOnlyList<Lesson> FitLessons(IReadOnlyList<Lesson> lessons, int maxTokens)
+    {
+        if (maxTokens <= 0 || lessons.Count == 0) return lessons;
+        var kept = new List<Lesson>(); var used = 0;
+        foreach (var l in lessons)
+        {
+            var t = EstimateTokens(l.Warning) + 4;
+            if (kept.Count > 0 && used + t > maxTokens) break; // always keep the single most-relevant lesson
+            used += t; kept.Add(l);
+        }
+        return kept;
+    }
     public static int EstimateTokens(IEnumerable<ChatTurn> turns) => turns.Sum(t => EstimateTokens(t.Content) + 4);
 
     /// <summary>A default LLM summarizer for <see cref="FitAsync"/>, or null when no model is configured.</summary>
