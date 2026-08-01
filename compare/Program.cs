@@ -50,6 +50,14 @@ app.MapPost("/api/teach", async (HttpRequest req) =>
     return Results.Json(await TeachRun.RunAsync(b["teach"]?.GetValue<string>(), b["reset"]?.GetValue<bool>() ?? false, req.HttpContext.RequestAborted));
 });
 
+// Learn-from-use: a user edits / thumbs-down / regenerates the answer → the implicit-signal adapter mints a
+// Provisional lesson from that action → the next generation applies it. No teaching UI, no explicit rule.
+app.MapPost("/api/implicit", async (HttpRequest req) =>
+{
+    var b = (JsonNode.Parse(await new StreamReader(req.Body).ReadToEndAsync()) as JsonObject) ?? new JsonObject();
+    return Results.Json(await ImplicitRun.RunAsync(b, req.HttpContext.RequestAborted));
+});
+
 app.MapPost("/api/compare", async (HttpRequest req) =>
 {
     var body = (JsonNode.Parse(await new StreamReader(req.Body).ReadToEndAsync()) as JsonObject) ?? new JsonObject();

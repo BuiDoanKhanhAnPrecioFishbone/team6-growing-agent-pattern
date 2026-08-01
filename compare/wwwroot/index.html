@@ -154,6 +154,31 @@
     <div class="lessons" id="teachLessons" style="display:none"></div>
   </div>
 
+  <div id="implicitPanel" style="display:none">
+    <p class="blurb" id="impTaskLabel">▹ loading…</p>
+    <p class="runs" style="margin:-.3rem 0 1rem">No teaching box. Just do what a user does — <b>edit</b> the answer, <b>👎</b> it, or ask for <b>another</b>. The harness reads that action as a reward and learns a rule on its own.</p>
+    <div class="cols" style="grid-template-columns:1fr">
+      <div class="col harness">
+        <h2>The agent's note <span class="k">edit it like you would in any AI product</span></h2>
+        <div class="body">
+          <textarea id="impOut" spellcheck="false"
+            style="width:100%;min-height:6.5rem;font-family:var(--sans);background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:.5rem;padding:.6rem .8rem;font-size:.92rem;line-height:1.5;resize:vertical">— click Generate for the baseline —</textarea>
+        </div>
+      </div>
+    </div>
+    <div class="taskrow" style="margin-top:.8rem;flex-wrap:wrap;gap:.5rem">
+      <button class="primary" id="impEdit">✎ Save my edit — learn from it</button>
+      <button id="impDown">👎 Thumbs down</button>
+      <button id="impRegen">↻ Regenerate</button>
+      <span style="flex:1"></span>
+      <button id="impGen">Generate baseline</button>
+      <button id="impReset">Reset</button>
+    </div>
+    <div id="impLearned" style="display:none"></div>
+    <p class="runs" style="margin:.6rem 0 0">Edited answers become a <b>Provisional</b> lesson (tried, not yet trusted) — it earns <b>Verified</b> as its hit-rate proves out. This is how the agent grows from ordinary use, with nobody teaching it.</p>
+    <div class="lessons" id="impLessons" style="display:none"></div>
+  </div>
+
   <footer>gpt-4.1-mini · Azure AI Foundry · the harness is off-the-shelf; only the reward changes per domain</footer>
 </div>
 
@@ -166,10 +191,12 @@ async function load(){
   DOM = d.domains;
   $('modelBadge').innerHTML = `<span class="dot ${d.live?'on':'off'}"></span> same model: <b>${d.model}</b>` + (d.live?'':' · offline mock (set AGENT_LLM_*)');
   $('tabs').innerHTML = DOM.map((x,i)=>`<span class="tab ${i===0?'active':''}" data-i="${i}">${x.title}</span>`).join('')
+    + '<span class="tab" data-implicit="1">🌱 Learn from use</span>'
     + '<span class="tab" data-teach="1">🎓 Teach the agent</span>';
   document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
-    if(t.dataset.teach==='1'){ setTeach(true); }
-    else { setTeach(false); cur=+t.dataset.i; renderTabs(); }
+    if(t.dataset.teach==='1'){ setMode('teach'); }
+    else if(t.dataset.implicit==='1'){ setMode('implicit'); }
+    else { setMode('domain'); cur=+t.dataset.i; renderTabs(); }
   });
   renderTabs();
 }
@@ -272,15 +299,48 @@ $('costBtn').onclick=async()=>{
   }catch(e){ $('costOut').innerHTML='<p style="color:var(--bad);font-size:.85rem">error: '+esc(e.message)+'</p>'; }
   finally{ b.disabled=false; b.textContent='Measure cost again'; }
 };
-// ── Teach the agent (human-in-the-loop) ──
-let teachStarted=false;
-function setTeach(on){
-  $('domainMode').style.display = on?'none':'';
-  $('costCard').style.display = on?'none':'';
-  $('teachPanel').style.display = on?'block':'none';
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', on ? t.dataset.teach==='1' : false));
-  if(on && !teachStarted){ teachStarted=true; teachRun(); }
+// ── mode switching: domain compare / learn-from-use / teach ──
+let teachStarted=false, impStarted=false;
+function setMode(m){
+  $('domainMode').style.display = m==='domain'?'':'none';
+  $('costCard').style.display   = m==='domain'?'':'none';
+  $('teachPanel').style.display    = m==='teach'?'block':'none';
+  $('implicitPanel').style.display = m==='implicit'?'block':'none';
+  if(m==='teach'){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.teach==='1')); if(!teachStarted){teachStarted=true; teachRun();} }
+  if(m==='implicit'){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.implicit==='1')); if(!impStarted){impStarted=true; impRun();} }
 }
+
+// ── Learn from use (implicit-signal adapter) ──
+let lastImpOutput='';
+function setImpBusy(b){ ['impEdit','impDown','impRegen','impGen','impReset'].forEach(id=>$(id).disabled=b); }
+async function impRun(signal, reset){
+  const ta=$('impOut'); const prev=ta.value; ta.value='…thinking…'; setImpBusy(true);
+  const body={}; if(signal) body.signal=signal; if(reset) body.reset=true;
+  try{
+    const r=await (await fetch('/api/implicit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).json();
+    $('impTaskLabel').textContent='▹ '+r.task;
+    ta.value = r.output||'(no output)'; lastImpOutput = r.output||'';
+    const lc=$('impLearned');
+    if(r.learned){
+      const L=r.learned, rw=L.reward;
+      lc.style.display='block';
+      lc.innerHTML=`<div class="learn" style="margin:.4rem 0;align-items:flex-start"><span class="l">🌱</span> <span>from your <b>${esc(L.kind)}</b> → reward <b>${rw.score}</b> (${rw.pass?'endorsed ✓':'correction'}) → `
+        + (L.lesson ? `mined a <span class="tchip p">${esc(L.lesson.trust)}</span> lesson &nbsp;<b>“${esc(L.lesson.warning)}”</b>&nbsp; <span class="k">via ${esc(L.lesson.from)}</span>` : `reinforced the lessons that produced it`)
+        + ` — applied in the note above.</span></div>`;
+    } else lc.style.display='none';
+    const lp=$('impLessons');
+    if(r.lessons && r.lessons.length){ lp.style.display='block';
+      lp.innerHTML=`<p class="tlabel">Lessons mined from use (${r.lessons.length})</p><ul>`
+        + r.lessons.map(l=>`<li><span class="tchip ${l.trust==='Verified'?'v':'p'}">${l.trust}</span> ${esc(l.warning)}</li>`).join('')+'</ul>'; }
+    else lp.style.display='none';
+  }catch(e){ ta.value=prev; $('impLearned').style.display='block'; $('impLearned').innerHTML='<p style="color:var(--bad);font-size:.85rem">error: '+esc(e.message)+'</p>'; }
+  finally{ setImpBusy(false); }
+}
+$('impGen').onclick=()=>impRun();
+$('impReset').onclick=()=>{ $('impLearned').style.display='none'; impRun(null,true); };
+$('impEdit').onclick=()=>{ const edited=$('impOut').value.trim(); if(!edited||edited===lastImpOutput.trim()){ $('impTaskLabel').textContent='▹ edit the note above first, then save'; return; } impRun({kind:'Edit', output:lastImpOutput, correction:edited}); };
+$('impDown').onclick=()=>impRun({kind:'ThumbsDown', output:lastImpOutput});
+$('impRegen').onclick=()=>impRun({kind:'Regenerate', output:lastImpOutput});
 async function teachRun(teach, reset){
   $('teachOut').textContent='…thinking…';
   const body={}; if(teach) body.teach=teach; if(reset) body.reset=true;
