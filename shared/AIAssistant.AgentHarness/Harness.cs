@@ -27,7 +27,14 @@ public sealed record Reward(
     double Score,
     IReadOnlyDictionary<string, double> Breakdown,
     IReadOnlySet<string> FailedTriggers,
-    string Critique);
+    string Critique)
+{
+    /// <summary>Terse factory for a reward with no per-check breakdown — for the simplest hand-scored cases.</summary>
+    public static Reward Scored(bool pass, double score, string critique = "") =>
+        new(pass, Math.Clamp(score, 0, 1),
+            new Dictionary<string, double>(), new HashSet<string>(),
+            string.IsNullOrEmpty(critique) ? (pass ? "OK." : "Below the bar.") : critique);
+}
 
 /// <summary>What a lesson is about — drives recall relevance and pruning policy (Memory v2).</summary>
 public enum LessonType { GroundingRule, ToolTip, DomainFact, Strategy }

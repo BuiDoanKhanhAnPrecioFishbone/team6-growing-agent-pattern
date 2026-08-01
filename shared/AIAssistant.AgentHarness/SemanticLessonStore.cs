@@ -220,6 +220,79 @@ public sealed class SemanticLessonStore : ILessonStore
         return Task.CompletedTask;
     }
 
+    private const double ConsolidateTheta = 0.80; // related-but-distinct: above this clusters, below DedupTheta stays separate
+
+    /// <summary>
+    /// Consolidate an agent's memory: greedily cluster RELATED lessons (cosine ≥ 0.80, below the dedup line) and
+    /// replace each cluster of ≥ <paramref name="minCluster"/> with ONE distilled meta-lesson — so memory
+    /// summarizes itself at scale instead of growing linearly. Preserves aggregate stats and the strongest
+    /// trust of its members. A maintenance op (call periodically), not on the write path. Returns clusters folded.
+    /// </summary>
+    public async Task<int> ConsolidateAsync(string agent, int minCluster = 3, CancellationToken ct = default)
+    {
+        // Snapshot the injectable, embedded lessons for this agent (skip quarantined/junk).
+        List<Lesson> pool;
+        lock (_lock)
+            pool = _lessons.Where(l => l.Agent == agent && l.Trust != Trust.Quarantined && l.Embedding.Length > 0)
+                           .Select(Clone).ToList();
+
+        // Greedy single-pass clustering by embedding similarity (deterministic given store order).
+        var used = new HashSet<string>();
+        var clusters = new List<List<Lesson>>();
+        foreach (var seed in pool)
+        {
+            if (used.Contains(seed.Id)) continue;
+            var cluster = new List<Lesson> { seed }; used.Add(seed.Id);
+            foreach (var other in pool)
+            {
+                if (used.Contains(other.Id)) continue;
+                var c = Vec.Cosine(seed.Embedding, other.Embedding);
+                if (c >= ConsolidateTheta && c < DedupTheta) { cluster.Add(other); used.Add(other.Id); }
+            }
+            if (cluster.Count >= minCluster) clusters.Add(cluster);
+        }
+        if (clusters.Count == 0) return 0;
+
+        // Build each meta-lesson OUTSIDE the lock (summarizer may call a model).
+        var metas = new List<Lesson>();
+        foreach (var cluster in clusters)
+        {
+            var warning = await Consolidation.SummarizeAsync(cluster.Select(l => l.Warning).ToList(), ct);
+            if (string.IsNullOrWhiteSpace(warning)) continue;
+            var sector = cluster[0].Sector;
+            var applied = cluster.Sum(l => l.TimesApplied);
+            var helped = cluster.Sum(l => l.TimesHelped);
+            var meta = new Lesson
+            {
+                Id = $"{agent}|{sector}|meta:{StableHash(string.Concat(cluster.Select(l => l.Id).OrderBy(x => x)))}",
+                Agent = agent, Sector = sector, Trigger = "consolidated",
+                Condition = cluster.OrderBy(l => l.Condition.Length).First().Condition, // the most general condition
+                Warning = warning, Type = LessonType.Strategy,
+                // the distillation is at least as trustworthy as its strongest source
+                Trust = cluster.Any(l => l.Trust == Trust.Verified) ? Trust.Verified : Trust.Provisional,
+                TimesApplied = applied, TimesHelped = helped,
+                HitRate = applied == 0 ? 0 : Math.Round((double)helped / applied, 4),
+                LearnedFrom = $"consolidated {cluster.Count} lessons: {string.Join(", ", cluster.Select(l => l.Trigger))}",
+                Date = cluster.Max(l => l.Date) ?? "", LastUsed = cluster.Max(l => l.Date) ?? "",
+            };
+            meta.Embedding = await _embedder.EmbedAsync($"{meta.Condition} — {meta.Warning}", ct);
+            metas.Add(meta);
+        }
+
+        lock (_lock)
+        {
+            foreach (var cluster in clusters)
+                foreach (var m in cluster)
+                    _lessons.RemoveAll(l => l.Id == m.Id);
+            _lessons.AddRange(metas);
+            Save();
+        }
+        return clusters.Count;
+    }
+
+    private static string StableHash(string s)
+    { unchecked { uint h = 2166136261; foreach (var c in s) { h ^= c; h *= 16777619; } return h.ToString("x8"); } }
+
     /// <summary>Wipe the memory — the UI's reset, so a fresh run learns from scratch.</summary>
     public void Clear() { lock (_lock) { _lessons.Clear(); Save(); } }
 
