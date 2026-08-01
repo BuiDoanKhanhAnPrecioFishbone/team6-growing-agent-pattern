@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Talk Track & Demo Guide — The Growing-Agent Pattern</title>
+<style>html{-webkit-text-size-adjust:100%}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root{
+    --ink:#0a1310; --panel:#0e1814; --panel-2:#0c1512; --line:#1d2c25;
+    --fg:#cfdad2; --dim:#8ba095; --faint:#5f7268;
+    --accent:#3ddc97; --bad:#e2726a; --warn:#d7a24e; --cool:#57b7c7;
+    --mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:light){:root{--ink:#f2f5f1;--panel:#fff;--panel-2:#f7faf7;--line:#dde6df;--fg:#132019;--dim:#516158;--faint:#7d8d83;--accent:#0f7a54;--bad:#b0473e;--warn:#96702a;--cool:#2b7d8c;}}
+  :root[data-theme="dark"]{--ink:#0a1310;--panel:#0e1814;--panel-2:#0c1512;--line:#1d2c25;--fg:#cfdad2;--dim:#8ba095;--faint:#5f7268;--accent:#3ddc97;--bad:#e2726a;--warn:#d7a24e;--cool:#57b7c7;}
+  :root[data-theme="light"]{--ink:#f2f5f1;--panel:#fff;--panel-2:#f7faf7;--line:#dde6df;--fg:#132019;--dim:#516158;--faint:#7d8d83;--accent:#0f7a54;--bad:#b0473e;--warn:#96702a;--cool:#2b7d8c;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--fg);font-family:var(--sans);line-height:1.55}
+  .wrap{max-width:52rem;margin:0 auto;padding:clamp(1.25rem,4vw,2.5rem)}
+  a{color:var(--accent)}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 .8rem}
+  h1{font-family:var(--mono);font-weight:600;font-size:clamp(1.4rem,3.5vw,2rem);margin:0;letter-spacing:-.01em}
+  .sub{color:var(--dim);margin:.6rem 0 0}
+
+  .pin{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.4rem 0 0}
+  .num{border:1px solid color-mix(in oklab,var(--accent) 40%,var(--line));border-radius:.6rem;background:var(--panel);padding:.7rem .95rem}
+  .num b{display:block;font-family:var(--mono);font-size:1.15rem;color:var(--accent)}
+  .num span{font-size:.75rem;color:var(--dim)}
+
+  .setup{border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:.5rem;background:var(--panel-2);padding:.9rem 1.1rem;margin:1.6rem 0 0;font-size:.88rem}
+  .setup b{color:var(--warn)}
+  .setup code{font-family:var(--mono);font-size:.82em;color:var(--cool)}
+
+  .beat{border:1px solid var(--line);border-radius:.7rem;background:var(--panel);padding:1.15rem 1.25rem;margin:1rem 0 0}
+  .bhead{display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap}
+  .time{font-family:var(--mono);font-size:.72rem;color:var(--faint);border:1px solid var(--line);border-radius:1rem;padding:.12rem .55rem}
+  .btitle{font-weight:600;font-size:1.05rem}
+  .say{margin:.9rem 0 0;font-size:1.02rem;border-left:3px solid var(--accent);padding-left:.9rem;color:var(--fg)}
+  .say .lab{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.3rem}
+  .do{margin:.9rem 0 0;font-size:.92rem;background:var(--panel-2);border:1px solid var(--line);border-radius:.5rem;padding:.7rem .9rem;color:var(--dim)}
+  .do .lab{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cool);margin-right:.5rem}
+  .do b{color:var(--fg)}
+  code{font-family:var(--mono)}
+
+  .fallback{border:1px solid var(--line);border-left:3px solid var(--bad);border-radius:.5rem;background:var(--panel-2);padding:.9rem 1.1rem;margin:1.6rem 0 0;font-size:.88rem;color:var(--dim)}
+  .fallback b{color:var(--bad)}
+  footer{margin-top:2rem;padding-top:1.2rem;border-top:1px solid var(--line);color:var(--faint);font-family:var(--mono);font-size:.78rem}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">team6 · talk track &amp; demo guide · ~5 min</p>
+  <h1>What to say, what to click — in order.</h1>
+  <p class="sub">Keep this on a second screen. Green = say it. Blue = do it (live demo). The whole thing hinges on two numbers — memorize them:</p>
+
+  <div class="pin">
+    <div class="num"><b>10/15 = gpt-5.1</b><span>same quality — even gpt-5.1 solves only 10</span></div>
+    <div class="num"><b>~72% cost</b><span>via escalation — premium on just 6/15 tasks</span></div>
+    <div class="num"><b>same model</b><span>gpt-4.1-mini powers BOTH demo panels</span></div>
+  </div>
+
+  <div class="setup">
+    <b>Before you present.</b> Start the demo in <b>your own terminal</b> (not a fragile background):
+    <code>dotnet run --project compare</code> with <code>AGENT_LLM_*</code> + <code>AGENT_LLM_MODEL_STRONG=gpt-5.1</code>
+    + the <code>AGENT_PRICE_*</code> lines set. Open <b>http://localhost:5310</b>, do one throwaway <b>Run</b> on the UI tab
+    so the model is warm, then reset. Have the deck on the main screen, this guide on your laptop.
+  </div>
+
+  <!-- BEAT 1 -->
+  <div class="beat">
+    <div class="bhead"><span class="time">0:00 · 20s</span><span class="btitle">Hook — the frame</span></div>
+    <p class="say"><span class="lab">Say</span>"Frontier models are powerful — but expensive, and flat-expensive forever: the ten-thousandth call costs the same as the first. So we asked: can a <em>cheap</em> model, wrapped in the right harness, reach frontier quality? Same gpt-4.1-mini on both sides of this screen — the right one has our harness. Watch what the harness adds."</p>
+  </div>
+
+  <!-- BEAT 2 -->
+  <div class="beat">
+    <div class="bhead"><span class="time">0:20 · 20s</span><span class="btitle">The bet</span></div>
+    <p class="say"><span class="lab">Say</span>"Don't reach for a bigger model — build a harness around a cheap one. One reward gates the agent; it samples and self-verifies within a run, and it remembers every fixed mistake run-to-run. No GPU, no fine-tuning, on Azure Foundry — exactly the cost-optimized constraint."</p>
+  </div>
+
+  <!-- BEAT 3 -->
+  <div class="beat">
+    <div class="bhead"><span class="time">0:40 · 90s</span><span class="btitle">Demo — UI from a Figma design (the wow)</span></div>
+    <p class="do"><span class="lab">Do</span>On the <b>UI tab</b>, point to the <b>Target (Figma)</b> card at the top → click <b>Run</b>.</p>
+    <p class="say"><span class="lab">Say</span>"Left, the playground: a generic, incomplete card. Right, the harness grounded the model in your <em>actual</em> Figma design — the exact violet, Poppins, gold stars, the right buttons, clickable, Save disabled — and it <em>learned</em> those tokens." (point to the lessons list)</p>
+    <p class="do"><span class="lab">Do</span>Click <b>Run again</b>.</p>
+    <p class="say"><span class="lab">Say</span>"Now it <em>recalls</em> them — first try. Same model. The harness is the whole difference."</p>
+  </div>
+
+  <!-- BEAT 4 -->
+  <div class="beat">
+    <div class="bhead"><span class="time">2:10 · 60s</span><span class="btitle">Demo — it learns, and it's any domain</span></div>
+    <p class="do"><span class="lab">Do</span>Switch to <b>Factual QA</b> → pick the <b>Berkshire CEO 2026</b> task → <b>Run</b>.</p>
+    <p class="say"><span class="lab">Say</span>"Playground: 'Warren Buffett' — confidently wrong, its training is stale. Harness: the reward fails it, it <em>learns to call web_search</em>, and answers 'Greg Abel'."</p>
+    <p class="do"><span class="lab">Do</span>Click <b>Run again</b>.</p>
+    <p class="say"><span class="lab">Say</span>"Recalled — right first try. Same machinery, any domain: finance, code, reasoning, UI. It's domain-agnostic."</p>
+  </div>
+
+  <!-- BEAT 5 -->
+  <div class="beat">
+    <div class="bhead"><span class="time">3:10 · 70s</span><span class="btitle">Demo — the money slide: cost via escalation</span></div>
+    <p class="do"><span class="lab">Do</span>Scroll to the <b>Cost thesis</b> panel → click <b>Measure cost</b> (takes ~1–2 min — talk over it, or pre-run once).</p>
+    <p class="say"><span class="lab">Say</span>"Same hard reasoning problems. <b>Always paying gpt-5.1</b> solves 10 of 15, at full price. <b>Cheap-first plus escalate</b> — mini+harness, and the reward escalates to gpt-5.1 only on the ones it can't crack — hits the <em>same 10 of 15</em> at about <b>72% of the cost</b>, paying the premium on just <b>6 tasks</b>. Frontier quality — you pay the frontier price only where you must."</p>
+  </div>
+
+  <!-- BEAT 6 -->
+  <div class="beat">
+    <div class="bhead"><span class="time">4:20 · 20s</span><span class="btitle">Why it matters — Omnia</span></div>
+    <p class="say"><span class="lab">Say</span>"For Omnia: cheaper AI across many agents; agents that learn from your experts' corrections; deployable today on a plain Foundry endpoint with Cosmos vector memory. And the pattern is followable — the team ships new agents on it with a skill and NuGet packages."</p>
+  </div>
+
+  <!-- BEAT 7 -->
+  <div class="beat">
+    <div class="bhead"><span class="time">4:40 · 20s</span><span class="btitle">Close — the takeaway</span></div>
+    <p class="say"><span class="lab">Say</span>"We didn't build one clever agent — we built the <em>substrate</em> that makes any cheap-model agent grow. Frontier quality on a cheap model, cost-optimized by escalation, no GPU. And every run we just did quietly exported training data — the moment a GPU appears, we're already ART-ready. That's the growing-agent harness."</p>
+  </div>
+
+  <div class="fallback">
+    <b>If a live call hangs or a model already knows the answer:</b> don't wait — say
+    "and it's all reproducible offline" and switch to a proof that never fails —
+    <code>dotnet run --project flywheel</code> (training data) or
+    <code>dotnet run --project orchestrator -- --fresh</code> (12 → 6 iters, the pipeline compounding). Or jump to the
+    <b>Reasoning</b> tab, which is faster than UI.
+  </div>
+
+  <footer>
+    Deck &amp; details: docs/pitch-deck.html · docs/PITCH.md · one-page results: docs/harness-results.html
+    &nbsp;·&nbsp; two numbers: <b style="color:var(--accent)">10/15 = gpt-5.1 · ~72% cost</b>
+  </footer>
+</div>
+</body>
+</html>

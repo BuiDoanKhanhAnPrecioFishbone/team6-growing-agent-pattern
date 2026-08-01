@@ -34,6 +34,7 @@ PATTERN.md · RUNNING.md              the playbook (why & the contract) & how to
 docs/
   PITCH.md                           the pitch: submission narrative + 5-min demo run-of-show + Q&A
   pitch-deck.html                    presentation deck (open in a browser)
+  talk-track.html                    presenter guide: what to say + what to click, beat by beat
   harness-results.html               one-page results overview
   START-A-NEW-REPO.md                build agents in another repo (NuGet or vendor the harness)
   COSMOS-MEMORY.md                   persist lessons/context/memory in Cosmos DB (vector search)
