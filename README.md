@@ -36,6 +36,7 @@ docs/
   pitch-deck.html                    presentation deck (open in a browser)
   talk-track.html                    presenter guide: what to say + what to click, beat by beat
   deep-dive.html                     technical deep-dive: architecture, loop, memory, tools, cost
+  how-it-learns.html                 dev explainer: the lesson lifecycle, curation, and the training flywheel
   harness-results.html               one-page results overview
   START-A-NEW-REPO.md                build agents in another repo (NuGet or vendor the harness)
   COSMOS-MEMORY.md                   persist lessons/context/memory in Cosmos DB (vector search)

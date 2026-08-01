@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the Agent Gets Better — Lessons &amp; Training</title>
+<style>html{-webkit-text-size-adjust:100%}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root{
+    --ink:#0a1310;--panel:#0e1814;--panel-2:#0c1512;--line:#1d2c25;
+    --fg:#cfdad2;--dim:#8ba095;--faint:#5f7268;
+    --accent:#3ddc97;--bad:#e2726a;--warn:#d7a24e;--cool:#57b7c7;
+    --mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:light){:root{--ink:#f2f5f1;--panel:#fff;--panel-2:#f6f8f5;--line:#dde6df;--fg:#132019;--dim:#4d5c53;--faint:#7d8d83;--accent:#0f7a54;--bad:#b0473e;--warn:#8a6a25;--cool:#2b7d8c;}}
+  :root[data-theme="dark"]{--ink:#0a1310;--panel:#0e1814;--panel-2:#0c1512;--line:#1d2c25;--fg:#cfdad2;--dim:#8ba095;--faint:#5f7268;--accent:#3ddc97;--bad:#e2726a;--warn:#d7a24e;--cool:#57b7c7;}
+  :root[data-theme="light"]{--ink:#f2f5f1;--panel:#fff;--panel-2:#f6f8f5;--line:#dde6df;--fg:#132019;--dim:#4d5c53;--faint:#7d8d83;--accent:#0f7a54;--bad:#b0473e;--warn:#8a6a25;--cool:#2b7d8c;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--fg);font-family:var(--sans);line-height:1.6}
+  .slide{max-width:60rem;margin:0 auto;padding:clamp(2.25rem,6vh,4rem) clamp(1.25rem,5vw,3rem);border-bottom:1px solid var(--line)}
+  .slide:last-child{border-bottom:none}
+  .sn{font-family:var(--mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);display:flex;gap:.8rem;align-items:center;margin:0 0 1rem}
+  .sn .n{color:var(--faint);border:1px solid var(--line);border-radius:1rem;padding:.1rem .55rem}
+  h1{font-family:var(--mono);font-weight:600;font-size:clamp(1.7rem,4.5vw,2.6rem);margin:0;letter-spacing:-.01em;line-height:1.12;text-wrap:balance}
+  h2{font-size:clamp(1.3rem,3vw,1.8rem);margin:0;line-height:1.18;text-wrap:balance}
+  .hl{color:var(--accent)} .sub{color:var(--dim);margin:1rem 0 0;max-width:54ch;font-size:1.05rem}
+  p{margin:1rem 0 0} strong{color:var(--fg)}
+  code{font-family:var(--mono);font-size:.86em;color:var(--cool)}
+  pre{font-family:var(--mono);font-size:.8rem;line-height:1.7;background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:1rem 1.1rem;overflow-x:auto;margin:1.3rem 0 0}
+  pre .c{color:var(--faint)} pre .k{color:var(--accent)} pre .s{color:var(--warn)} pre .b{color:var(--bad)}
+  ul{margin:1.1rem 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.6rem}
+  li{position:relative;padding-left:1.25rem;color:var(--dim)} li::before{content:"▹";position:absolute;left:0;color:var(--accent)} li strong{color:var(--fg)}
+  .flow{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin-top:1.4rem;font-family:var(--mono);font-size:.78rem}
+  .node{border:1px solid var(--line);background:var(--panel);border-radius:.4rem;padding:.36rem .58rem;white-space:nowrap}
+  .node.k{border-color:var(--accent);color:var(--accent)} .node.b{border-color:color-mix(in oklab,var(--bad) 45%,var(--line));color:var(--bad)}
+  .arrow{color:var(--faint)}
+  .states{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1.3rem}
+  .st{border:1px solid var(--line);border-radius:.5rem;background:var(--panel);padding:.7rem .9rem;font-size:.85rem;flex:1;min-width:13rem}
+  .st b{display:block;font-family:var(--mono);font-size:.82rem} .st.prov b{color:var(--warn)} .st.ver b{color:var(--accent)} .st.quar b{color:var(--bad)}
+  .st span{color:var(--dim);font-size:.82rem}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1rem;margin-top:1.3rem}
+  .card{border:1px solid var(--line);border-radius:.6rem;background:var(--panel);padding:1rem 1.1rem}
+  .card h3{margin:0;font-size:.95rem;display:flex;gap:.5rem;align-items:center}
+  .card .tag{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);border:1px solid var(--line);border-radius:1rem;padding:.1rem .45rem}
+  .card p{margin:.5rem 0 0;font-size:.87rem;color:var(--dim)}
+  .note{border-left:3px solid var(--accent);padding-left:.9rem;color:var(--dim);margin-top:1.3rem}
+  footer{max-width:60rem;margin:0 auto;padding:2rem clamp(1.25rem,5vw,3rem);color:var(--faint);font-family:var(--mono);font-size:.78rem}
+</style>
+
+<!-- 1 -->
+<section class="slide">
+  <p class="sn"><span class="n">for developers</span> how an agent gets better</p>
+  <h1>The agent learns from its own <span class="hl">reward-verified mistakes</span> — and from your experts.</h1>
+  <p class="sub">No fine-tuning, no GPU. A mistake the loop fixes becomes a <strong>lesson</strong> the next run
+    recalls; every run is also <strong>training data</strong> for later. Here's exactly how — and what you write.</p>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <p class="sn"><span class="n">01</span> the core idea</p>
+  <h2>A fixed mistake becomes a lesson. <span class="hl">The next run recalls it.</span></h2>
+  <div class="flow">
+    <span class="node">generate</span><span class="arrow">→</span>
+    <span class="node k">reward.Evaluate</span><span class="arrow">→</span>
+    <span class="node b">FailedTriggers</span><span class="arrow">→</span>
+    <span class="node">revise &amp; fix</span><span class="arrow">→</span>
+    <span class="node k">LessonFor(trigger) → store</span>
+  </div>
+  <div class="flow">
+    <span class="node">next run</span><span class="arrow">→</span>
+    <span class="node k">retrieve relevant lessons</span><span class="arrow">→</span>
+    <span class="node">inject into the prompt</span><span class="arrow">→</span>
+    <span class="node">avoids the mistake — first try</span>
+  </div>
+  <p class="note">The whole thing is <strong>context engineering driven by a reward</strong>: the reward says what
+    "wrong" means, the fix becomes a durable note, and retrieval brings the right note back at the right moment.</p>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <p class="sn"><span class="n">02</span> a lesson's life · a real example</p>
+  <h2>Born from a failed trigger; applied by retrieval.</h2>
+<pre><span class="c">// RUN 1 — the agent cites a source it wasn't given</span>
+Evaluate(draft) → Reward{ Pass:false, FailedTriggers:["UNCITED_SOURCE"], Critique:"cite only provided sources" }
+loop revises → fixes it → the harness calls:
+LessonFor("UNCITED_SOURCE") → Lesson{
+  Id: <span class="s">"s2-moat|consumer_staples|UNCITED_SOURCE"</span>,   <span class="c">// {agent|sector|trigger} = upsert key</span>
+  Warning: "Cite only the provided sources; never invent a citation.",
+  Embedding: [ … ],  Trust: <span class="s">Provisional</span> }  → store.WriteAsync
+
+<span class="c">// RUN 2 — same sector, new company</span>
+RetrieveAsync(agent, situation) → [that lesson] → injected up front → the agent cites correctly, first try.</pre>
+    <p class="note">You never write retrieval or prompt-plumbing — you write <code>Evaluate</code> (what failed) and
+      <code>LessonFor</code> (the note). The harness stores, ranks, injects, and tracks whether it helped.</p>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <p class="sn"><span class="n">03</span> the lesson &amp; how it's retrieved</p>
+  <h2>A tiny record, retrieved by <span class="hl">meaning</span>.</h2>
+<pre><span class="k">class</span> Lesson {
+  string Id;              <span class="c">// "{agent}|{sector}|{trigger}" — upsert key</span>
+  string Warning;         <span class="c">// the guidance injected next time</span>
+  float[] Embedding;      <span class="c">// vector of (condition + warning) — for semantic recall</span>
+  Trust  Trust;           <span class="c">// Provisional | Verified | Quarantined</span>
+  int    TimesApplied, TimesHelped;  double HitRate;  <span class="c">// self-correction stats</span>
+}</pre>
+  <p><strong>Retrieval is a 4-step pipeline</strong> — never dump the whole memory into the prompt:</p>
+  <div class="flow">
+    <span class="node">filter: agent · sector</span><span class="arrow">→</span>
+    <span class="node k">embed situation → cosine shortlist</span><span class="arrow">→</span>
+    <span class="node k">cheap LLM: which APPLY?</span><span class="arrow">→</span>
+    <span class="node">inject top-K</span>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <p class="sn"><span class="n">04</span> trust &amp; curation</p>
+  <h2>A memory that only appends, rots. This one <span class="hl">curates itself.</span></h2>
+  <div class="states">
+    <div class="st prov"><b>Provisional</b><span>a freshly learned lesson — used, but on probation</span></div>
+    <div class="st ver"><b>Verified</b><span>earned it: hit-rate ≥ 0.6 &amp; helped ≥ 2×, <em>or</em> a human confirmed it</span></div>
+    <div class="st quar"><b>Quarantined</b><span>injection-suspicious — stored, but never injected</span></div>
+  </div>
+  <ul>
+    <li><strong>Decay + eviction:</strong> stale, low-hit lessons drop in ranking and are evicted over a per-agent cap.</li>
+    <li><strong>Conflict:</strong> re-learning the same trigger with opposing guidance demotes the rule and resets its stats — it must re-earn trust.</li>
+    <li><strong>Dedup:</strong> near-duplicates (cosine ≥ 0.92) merge instead of piling up.</li>
+    <li><strong>Hit-rate:</strong> every injected lesson is scored on whether it prevented its own mistake — a lesson that stops helping decays out.</li>
+  </ul>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <p class="sn"><span class="n">05</span> humans teach, too</p>
+  <h2>Your experts correct the agent in plain language.</h2>
+  <p>A reviewer rejects an output and states the rule. It's stored as a <strong>Verified</strong> lesson
+    immediately (a human said so), and the agent applies it on the next run — knowledge work compounds.</p>
+<pre><span class="c">// the /api/teach flow, live in the UI</span>
+human: <span class="s">"Always end an investment note with the not-advice disclaimer."</span>
+  → store.WriteAsync(Lesson{ Warning: …, Trust: <span class="k">Verified</span>, LearnedFrom: "human reviewer" })
+  → every future note includes it.</pre>
+  <p class="note">Same memory, two sources of learning: the <strong>reward</strong> (automatic) and <strong>people</strong> (explicit). Both become durable, ranked, curated lessons.</p>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <p class="sn"><span class="n">06</span> every run is training data</p>
+  <h2>The fast loop ships today; the same runs make you <span class="hl">train-ready.</span></h2>
+  <p>The loop keeps every <code>(draft, reward)</code> in <code>HarnessOutcome.Attempts</code>.
+    <code>TrainingExporter</code> turns a run into three trainer-ready shapes — for free:</p>
+  <div class="cols">
+    <div class="card"><h3>SFT <span class="tag">imitation</span></h3><p><code>{messages:[user, assistant=winning draft]}</code> — the passing completion as the target.</p></div>
+    <div class="card"><h3>Preference <span class="tag">DPO</span></h3><p><code>{prompt, chosen, rejected}</code> — best vs a lower-scored attempt.</p></div>
+    <div class="card"><h3>RL <span class="tag">GRPO / ART</span></h3><p><code>{prompt, completion, reward}</code> — every attempt tagged with its scalar reward.</p></div>
+  </div>
+  <div class="flow">
+    <span class="node k">fast loop</span><span class="arrow">— same reward —→</span>
+    <span class="node">slow loop (ART: weights, GPU, later)</span>
+  </div>
+  <p class="note">We don't need ART to ship — the fast loop already grows the agent, live, on a plain Foundry
+    endpoint. But the day a GPU appears, the dataset already exists. No rework.</p>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <p class="sn"><span class="n">07</span> the approach · what YOU write</p>
+  <h2>Three methods. The harness does the rest.</h2>
+<pre><span class="k">class</span> MyAgent : IAgent {
+  <span class="c">// 1) produce a draft — injected lessons + prior critique arrive as parameters</span>
+  Task&lt;string&gt; GenerateAsync(ctx, lessons, critique, prior, attempt, ct);
+  <span class="c">// 2) the REWARD — deterministic; its FailedTriggers drive learning</span>
+  Reward Evaluate(string draft, ctx);
+  <span class="c">// 3) mint the lesson for a trigger the loop just fixed</span>
+  Lesson? LessonFor(string trigger, ctx);
+}</pre>
+  <ul>
+    <li><strong>You own:</strong> the reward (what "better" means) and the lesson text.</li>
+    <li><strong>The harness owns:</strong> retrieval, injection, best-of-N, revise, trust, decay, eviction, conflict, the data export — written once, never per agent.</li>
+  </ul>
+  <p class="note">Scaffold it with the <code>build-growing-agent</code> skill, or copy <code>_template</code>. See <code>PATTERN.md</code>.</p>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <p class="sn"><span class="n">08</span> the one line</p>
+  <h2>You write the <span class="hl">reward</span> and the <span class="hl">lesson</span>. The harness makes the agent improve from its own reward-verified mistakes and your team's corrections — and turns every run into training data.</h2>
+</section>
+
+<footer>.NET 8 · Azure AI Foundry · github.com/BuiDoanKhanhAnPrecioFishbone/team6-growing-agent-pattern · run it: dotnet run --project flywheel</footer>
+</body>
+</html>
