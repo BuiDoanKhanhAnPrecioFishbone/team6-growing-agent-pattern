@@ -26,7 +26,7 @@ public interface IDomain
     int Samples { get; }         // best-of-N per round
     IReadOnlyList<DemoTask> Tasks { get; }
     IAgent NewAgent(DemoTask t);
-    Task<string> BareAsync(DemoTask t, CancellationToken ct);
+    Task<string> BareAsync(DemoTask t, CancellationToken ct, string? model = null);
     bool ThreeWay => false;   // show a 3rd "learned" column + a design-match score + the lesson list (UI)
     int MaxIters => 3;        // per-domain cap on regenerations
     ICritic? Critic => SelfVerify ? new LlmCritic() : null;  // self-verify critic (UI overrides with a vision judge)
@@ -60,8 +60,8 @@ public sealed class VisionCritic : ICritic
 // Shared helpers ---------------------------------------------------------------
 internal static class Llm
 {
-    public static Task<string> Plain(string system, string user, double temp, CancellationToken ct)
-        => ToolLoop.Enabled ? ToolLoop.CompleteAsync(system, user, temp, ct) : System.Threading.Tasks.Task.FromResult("(set AGENT_LLM_* to run live)");
+    public static Task<string> Plain(string system, string user, double temp, CancellationToken ct, string? model = null)
+        => ToolLoop.Enabled ? ToolLoop.CompleteAsync(system, user, temp, ct, model) : System.Threading.Tasks.Task.FromResult("(set AGENT_LLM_* to run live)");
 
     public static string WithLessons(string system, IReadOnlyList<Lesson> lessons, string? critique)
     {
@@ -86,8 +86,8 @@ public sealed class QaDomain : IDomain
         new DemoTask("Who became the CEO of Berkshire Hathaway in 2026?", Array.Empty<string>(), new[]{"abel"}, "post-cutoff fact"),
         new DemoTask("What is the capital city of Australia?", Array.Empty<string>(), new[]{"canberra"}, "commonly mis-answered"),
     };
-    public Task<string> BareAsync(DemoTask t, CancellationToken ct) =>
-        Llm.Plain("Answer in one short sentence. If unsure, give your best guess — do not refuse.", t.Prompt, 0, ct);
+    public Task<string> BareAsync(DemoTask t, CancellationToken ct, string? model = null) =>
+        Llm.Plain("Answer in one short sentence. If unsure, give your best guess — do not refuse.", t.Prompt, 0, ct, model);
     public IAgent NewAgent(DemoTask t) => new QaAgent(t);
 
     sealed class QaAgent : IAgent
@@ -131,8 +131,8 @@ public sealed class ReasonDomain : IDomain
         new DemoTask("A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost, in cents?", Array.Empty<string>(), new[]{"5 cent","5cent","$0.05","0.05","5 c"}, "classic trap (answer 5, not 10)"),
         new DemoTask("If it takes 5 machines 5 minutes to make 5 widgets, how many minutes for 100 machines to make 100 widgets?", Array.Empty<string>(), new[]{"5 minute","5 min","5min"," 5 "}, "rate trap (answer 5)"),
     };
-    public Task<string> BareAsync(DemoTask t, CancellationToken ct) =>
-        Llm.Plain("Answer with just the final answer, briefly.", t.Prompt, 0, ct);
+    public Task<string> BareAsync(DemoTask t, CancellationToken ct, string? model = null) =>
+        Llm.Plain("Answer with just the final answer, briefly.", t.Prompt, 0, ct, model);
     public IAgent NewAgent(DemoTask t) => new ReasonAgent(t);
 
     sealed class ReasonAgent : IAgent
@@ -177,11 +177,11 @@ public sealed class MoatDomain : IDomain
     };
     // Playground baseline: the facts, but the NAIVE ask — no citation scaffolding. The harness's value is
     // that it enforces grounding (and learns to), so the bare draft typically omits the [S#] tags.
-    public Task<string> BareAsync(DemoTask t, CancellationToken ct)
+    public Task<string> BareAsync(DemoTask t, CancellationToken ct, string? model = null)
     {
         var sb = new StringBuilder("You are an equity analyst. Write a 2-sentence economic-moat assessment based on these facts:\n");
         foreach (var s in t.Sources) sb.Append("- ").Append(s).Append('\n');
-        return Llm.Plain(sb.ToString(), t.Prompt, 0, ct);
+        return Llm.Plain(sb.ToString(), t.Prompt, 0, ct, model);
     }
     public IAgent NewAgent(DemoTask t) => new MoatAgent(t);
 
@@ -273,9 +273,9 @@ public sealed class UiDomain : IDomain
     public IReadOnlyList<DemoTask> Tasks => new[] { new DemoTask(Brief, Array.Empty<string>(), Array.Empty<string>(), "Review-for-Candidate card (from Figma)") };
     // Playground baseline: the NAIVE ask — no spec, no enforcement. The harness's value is that it carries
     // the full design spec and a reward that checks it, so bare here comes out sparse/incomplete.
-    public Task<string> BareAsync(DemoTask t, CancellationToken ct) =>
+    public Task<string> BareAsync(DemoTask t, CancellationToken ct, string? model = null) =>
         Llm.Plain("You are a front-end engineer. Return only HTML.",
-            "Build a \"Review for Candidate\" review card as a small HTML page.", 0, ct);
+            "Build a \"Review for Candidate\" review card as a small HTML page.", 0, ct, model);
     public IAgent NewAgent(DemoTask t) => new UiAgent(t);
 
     static List<string> Misses(string html)

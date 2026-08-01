@@ -79,6 +79,8 @@
   .chip.pass{color:var(--accent);border-color:color-mix(in oklab,var(--accent) 45%,transparent)}
   .chip.fail{color:var(--bad);border-color:color-mix(in oklab,var(--bad) 45%,transparent)}
   .chip.part{color:var(--dim);border-color:var(--line)}
+  .ccost2{font-family:var(--mono);font-size:.78rem;color:var(--dim);margin-top:.55rem;border-top:1px solid var(--line);padding-top:.5rem}
+  .ccost2 b{color:var(--accent);font-variant-numeric:tabular-nums}
   .meta{font-family:var(--mono);font-size:.76rem;color:var(--dim);display:flex;flex-wrap:wrap;gap:.3rem 1rem;border-top:1px solid var(--line);padding-top:.7rem;margin-top:auto}
   .meta b{color:var(--fg)}
   .learn{font-size:.8rem;color:var(--dim);border-left:2px solid var(--accent);padding-left:.7rem}
@@ -90,9 +92,9 @@
 <div class="wrap">
   <p class="eyebrow">team6 · growing-agent harness</p>
   <h1>Same cheap model. <span class="hl">One has a harness.</span></h1>
-  <p class="sub">Left is a single completion — what you'd get typing into the Foundry playground. Right runs the
-    <b>same model</b> through the harness: a reward-gated loop with a memory that grows. Hit <b>Run again</b> to
-    watch the harness side compound while the playground stays flat.</p>
+  <p class="sub">Same task, three ways — a <b>frontier model</b> raw, the <b>cheap model</b> raw, and the
+    <b>cheap model + harness</b> — with the <b>cost</b> of each. Watch the cheap model reach frontier quality
+    for a fraction of the price, and see what the harness learned. Hit <b>Run again</b> to watch it recall.</p>
 
   <div class="bar">
     <span class="badge" id="modelBadge"><span class="dot off"></span> loading…</span>
@@ -217,27 +219,33 @@ async function run(){
     const r = await (await fetch('/api/compare',{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({domain:DOM[cur].key, task:+$('taskSel').value})})).json();
     runCount++;
-    $('runs').textContent = `run #${runCount} on this memory · Run again to reuse what the harness learned`;
     const isUi = DOM[cur].key==='ui';
     const used = r.harness.injected.length, learned = r.harness.learned.length;
+    const money = c => '$'+(c||0).toFixed(5);
 
-    const panels = [{label:'Foundry playground', tag:'bare · no memory', d:r.bare, meta:'1 model call · no memory'}];
-    if(r.cold) panels.push({label:'Harness — cold', tag:'no lessons yet', d:r.cold, meta:'the spec, but nothing learned yet'});
-    panels.push({label: r.cold?'Harness — learned':'Growing-agent harness', tag:'reward + memory', d:r.harness, harness:true,
+    const panels = [];
+    if(r.frontier) panels.push({label:`${r.frontier.model} · no harness`, tag:'frontier · raw', d:r.frontier, cost:r.frontier.cost});
+    panels.push({label:`${r.model} · no harness`, tag:'cheap · raw', d:r.mini, cost:r.mini.cost});
+    panels.push({label:`${r.model} · harness`, tag:'reward + memory', d:r.harness, cost:r.harness.cost, harness:true,
       note: learned? `learned ${learned} lesson${learned>1?'s':''} this run` : (used? `recalled ${used} lesson${used>1?'s':''} — applied first try` : ''),
-      meta:`${r.harness.iterations} iter · ${r.harness.generations} calls · recalled ${used} · learned ${learned}`});
+      meta:`${r.harness.iterations} iter · ${r.harness.generations} calls`});
 
     const cols = $('cols'); cols.innerHTML='';
     for(const p of panels){
       const col=document.createElement('div'); col.className='col'+(p.harness?' harness':'');
       col.innerHTML=`<h2>${p.label} <span class="k">${p.tag}</span></h2><div class="body">`
         +`<div class="answer"></div><div class="verdict"></div>`
-        +`${p.note?`<div class="learn"><span class="l">✓</span> ${p.note}</div>`:''}<div class="meta">${p.meta}</div></div>`;
+        +`${p.note?`<div class="learn"><span class="l">✓</span> ${p.note}</div>`:''}`
+        +`<div class="ccost2">cost <b>${money(p.cost)}</b>${p.meta?` · ${p.meta}`:''}</div></div>`;
       renderInto(col.querySelector('.answer'), p.d.answer, isUi);
       col.querySelector('.verdict').innerHTML = verdictHtml(p.d, isUi, r.elementsTotal)
         + (p.harness && r.harness.escalated ? '<span class="chip fail">escalated</span>' : '');
       cols.appendChild(col);
     }
+    if(r.frontier){
+      const pct = r.frontier.cost>0 ? Math.round(r.harness.cost/r.frontier.cost*100) : 0;
+      $('runs').innerHTML = `run #${runCount} · <b>${r.model}+harness</b> ${r.harness.pass===r.frontier.pass?'matched':'vs'} <b>${r.frontier.model}</b>'s result at <b>~${pct}%</b> of its cost`;
+    } else $('runs').textContent = `run #${runCount} · set AGENT_LLM_MODEL_STRONG for the frontier column`;
 
     const lp=$('lessonsPanel');
     if(r.lessons && r.lessons.length){

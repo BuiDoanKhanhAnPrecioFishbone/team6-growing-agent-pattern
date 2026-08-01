@@ -68,43 +68,50 @@ app.MapPost("/api/compare", async (HttpRequest req) =>
         AllowedSources = task.Sources,
     };
     var opt = new HarnessOptions(MaxIters: domain.MaxIters, Threshold: 1.0, RetrieveTopK: 3, Samples: domain.Samples);
+    var strong = Environment.GetEnvironmentVariable("AGENT_LLM_MODEL_STRONG");
+    double PriceOf(string k, double d) => double.TryParse(Environment.GetEnvironmentVariable(k), out var v) ? v : d;
+    double miniIn = PriceOf("AGENT_PRICE_IN", 0.40), miniOut = PriceOf("AGENT_PRICE_OUT", 1.60);
+    double frIn = PriceOf("AGENT_PRICE_STRONG_IN", 1.25), frOut = PriceOf("AGENT_PRICE_STRONG_OUT", 10.0);
+    double MiniCost() { var u = CostLedger.Snapshot(); return u.Prompt / 1e6 * miniIn + u.Completion / 1e6 * miniOut; }
+    double FrCost() { var u = CostLedger.Snapshot(); return u.Prompt / 1e6 * frIn + u.Completion / 1e6 * frOut; }
 
-    // (1) bare — the playground: same task, one shot, no reward loop / memory / tools.
-    var bare = StripFence(await domain.BareAsync(task, ct));
-    var bareR = domain.NewAgent(task).Evaluate(bare, ctx);
+    // (1) gpt-4.1-mini · NO harness — one shot, cheap.
+    CostLedger.Reset();
+    var mini = StripFence(await domain.BareAsync(task, ct));
+    var miniCost = MiniCost();
+    var miniR = domain.NewAgent(task).Evaluate(mini, ctx);
 
-    // (2) harness COLD (three-way only) — the harness's own generation with NO learned lessons, one shot.
-    // Isolates the value of the MEMORY: this is what the harness produces before it has learned anything.
-    object? cold = null;
-    if (domain.ThreeWay)
+    // (2) frontier · NO harness — the SAME task on the bigger model (if configured).
+    object? frontier = null;
+    if (!string.IsNullOrWhiteSpace(strong))
     {
-        var coldDraft = StripFence(await domain.NewAgent(task).GenerateAsync(ctx, Array.Empty<Lesson>(), null, null, 0, ct));
-        var coldR = domain.NewAgent(task).Evaluate(coldDraft, ctx);
-        cold = new { answer = coldDraft, pass = coldR.Pass, score = coldR.Score };
+        CostLedger.Reset();
+        var frAns = StripFence(await domain.BareAsync(task, ct, strong));
+        var frCost = FrCost();
+        var frR = domain.NewAgent(task).Evaluate(frAns, ctx);
+        frontier = new { model = strong, answer = frAns, pass = frR.Pass, score = frR.Score, cost = frCost };
     }
 
-    // (3) harness LEARNED — the real loop + persistent memory: recalls what it knows, learns what it missed.
-    // The critic is the domain's (UI uses a vision judge that compares the output to the target image).
+    // (3) gpt-4.1-mini · HARNESS — the loop + persistent memory (critic is the domain's).
     var harness = new AgentHarness(store, critic: domain.Critic);
+    CostLedger.Reset();
     var o = await harness.RunAsync(domain.NewAgent(task), ctx, opt, ct);
+    var harnessCost = MiniCost();
 
-    // Everything this agent has learned so far (shown each run).
     var agentId = domain.NewAgent(task).Id;
     var lessons = (await store.AllAsync()).Where(l => l.Agent == agentId)
         .Select(l => new { warning = l.Warning, trust = l.Trust.ToString() }).ToList();
 
     return Results.Json(new
     {
-        live = Model.Enabled, model = Model.Name,
-        elementsTotal = domain.Elements,
-        bare = new { answer = bare, pass = bareR.Pass, score = bareR.Score },
-        cold,
+        live = Model.Enabled, model = Model.Name, frontierModel = strong, elementsTotal = domain.Elements,
+        mini = new { answer = mini, pass = miniR.Pass, score = miniR.Score, cost = miniCost },
+        frontier,
         harness = new
         {
-            answer = StripFence(o.BestDraft ?? ""), pass = o.Best.Pass, score = o.Best.Score,
+            answer = StripFence(o.BestDraft ?? ""), pass = o.Best.Pass, score = o.Best.Score, cost = harnessCost,
             iterations = o.Iterations, generations = o.Generations, escalated = o.Escalated,
-            injected = o.InjectedLessons, learned = o.LearnedLessons,
-            critique = o.Best.Critique,
+            injected = o.InjectedLessons, learned = o.LearnedLessons, critique = o.Best.Critique,
         },
         lessons,
     });
