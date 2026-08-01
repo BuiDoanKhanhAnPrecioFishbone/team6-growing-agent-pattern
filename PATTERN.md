@@ -85,6 +85,12 @@ the exact same reward, so nothing is wasted. This is the single most important d
 run-to-run inside the contest's constraints. ART is a slide that says "and here's how it scales further with
 GPU" — not a dependency, not a risk on the demo.
 
+**The flywheel makes that concrete.** Every reward-labeled run the fast loop does is, for free, training
+data. `HarnessOutcome.Attempts` carries every *(draft, reward)*, and `TrainingExporter` turns a run into
+three shapes the slow loop can consume — **SFT** (winning completions), **preference/DPO** (chosen vs
+rejected), and **RL/GRPO** (every attempt tagged with its reward). So "we're ART-ready" isn't aspirational:
+the moment a GPU appears, you already have the dataset. Demonstrated by `flywheel/` (offline, deterministic).
+
 ---
 
 ## 5. Anatomy of the harness — parts & extension points

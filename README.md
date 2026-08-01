@@ -72,6 +72,7 @@ dotnet run --project codeagent                  # 2nd domain, real reward = unit
 dotnet run --project mcptest                     # 13 real MCP tools over stdio (needs node)
 dotnet run --project memlife                     # memory lifecycle: decay/eviction/conflict — 7/7
 dotnet run --project ctxtest                     # context management — 11/11
+dotnet run --project flywheel                    # ART flywheel: runs → SFT/preference/RL training corpus
 
 # live · set AGENT_LLM_* first
 dotnet run --project ampeval                     # grounding: bare 5/6 → +web_search 6/6

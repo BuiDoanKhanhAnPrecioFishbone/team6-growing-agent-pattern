@@ -121,7 +121,8 @@ public sealed record HarnessOutcome(
     IReadOnlyList<string> InjectedLessons,
     IReadOnlyList<string> LearnedLessons,
     int Generations = 0,
-    bool Escalated = false);
+    bool Escalated = false,
+    IReadOnlyList<Attempt>? Attempts = null);   // every (draft, reward) this run — the training-data flywheel
 
 /// <summary>
 /// Optional self-verification (amplifier lever). An LLM critic inspects a draft the deterministic
@@ -184,6 +185,7 @@ public sealed class AgentHarness
         var rounds = 0;
         var generations = 0;
         var escalated = false;
+        var attempts = new List<Attempt>();   // collect every (draft, reward) for the training-data export
 
         for (var iter = 0; iter < opt.MaxIters; iter++)
         {
@@ -199,6 +201,7 @@ public sealed class AgentHarness
                 var draft = await agent.GenerateAsync(ctx, injected, critique, prior, seed, ct);
                 var r = agent.Evaluate(draft, ctx);
                 generations++;
+                attempts.Add(new Attempt(draft, r.Score, r.Pass));
                 firstReward ??= r;
                 if (roundBest is null || r.Score > roundBest.Score) { roundBest = r; roundBestDraft = draft; }
             }
@@ -230,6 +233,7 @@ public sealed class AgentHarness
                 var r = agent.Evaluate(esc, ctx);
                 generations++;
                 escalated = true;
+                attempts.Add(new Attempt(esc, r.Score, r.Pass));
                 if (r.Score > best.Score) { best = r; bestDraft = esc; }
             }
         }
@@ -253,6 +257,6 @@ public sealed class AgentHarness
 
         return new HarnessOutcome(
             bestDraft, best, rounds, firstReward.Score,
-            injected.Select(l => l.Id).ToList(), learned, generations, escalated);
+            injected.Select(l => l.Id).ToList(), learned, generations, escalated, attempts);
     }
 }
