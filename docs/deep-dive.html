@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Growing-Agent Pattern — Technical Deep-Dive</title>
+<style>html{-webkit-text-size-adjust:100%}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root{
+    --ink:#0a1310; --panel:#0e1814; --panel-2:#0c1512; --line:#1d2c25;
+    --fg:#cfdad2; --dim:#8ba095; --faint:#5f7268;
+    --accent:#3ddc97; --bad:#e2726a; --warn:#d7a24e; --cool:#57b7c7;
+    --mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:light){:root{--ink:#f2f5f1;--panel:#fff;--panel-2:#f6f8f5;--line:#dde6df;--fg:#132019;--dim:#4d5c53;--faint:#7d8d83;--accent:#0f7a54;--bad:#b0473e;--warn:#8a6a25;--cool:#2b7d8c;}}
+  :root[data-theme="dark"]{--ink:#0a1310;--panel:#0e1814;--panel-2:#0c1512;--line:#1d2c25;--fg:#cfdad2;--dim:#8ba095;--faint:#5f7268;--accent:#3ddc97;--bad:#e2726a;--warn:#d7a24e;--cool:#57b7c7;}
+  :root[data-theme="light"]{--ink:#f2f5f1;--panel:#fff;--panel-2:#f6f8f5;--line:#dde6df;--fg:#132019;--dim:#4d5c53;--faint:#7d8d83;--accent:#0f7a54;--bad:#b0473e;--warn:#8a6a25;--cool:#2b7d8c;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--fg);font-family:var(--sans);line-height:1.6}
+  .wrap{max-width:58rem;margin:0 auto;padding:clamp(1.25rem,4vw,3rem)}
+  a{color:var(--accent)}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 .9rem}
+  h1{font-family:var(--mono);font-weight:600;font-size:clamp(1.6rem,4vw,2.4rem);margin:0;letter-spacing:-.01em;line-height:1.1}
+  .sub{color:var(--dim);margin:.9rem 0 0;max-width:54ch}
+  h2{font-size:clamp(1.25rem,2.6vw,1.6rem);margin:0;line-height:1.2;text-wrap:balance}
+  section{margin-top:clamp(2.5rem,6vw,3.75rem)}
+  .sn{font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);display:block;margin-bottom:.55rem}
+  p{margin:1rem 0 0} strong{color:var(--fg)}
+  h3{font-size:1.02rem;margin:1.7rem 0 0}
+  code{font-family:var(--mono);font-size:.86em;color:var(--cool)}
+  pre{font-family:var(--mono);font-size:.8rem;line-height:1.7;background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:1rem 1.1rem;overflow-x:auto;margin:1.1rem 0 0}
+  pre .c{color:var(--faint)} pre .k{color:var(--accent)} pre .s{color:var(--warn)}
+  ul{margin:1rem 0 0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:.55rem}
+  li{position:relative;padding-left:1.2rem;color:var(--dim)}
+  li::before{content:"▹";position:absolute;left:0;color:var(--accent)}
+  li strong{color:var(--fg)}
+  .flow{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin-top:1.2rem;font-family:var(--mono);font-size:.78rem}
+  .node{border:1px solid var(--line);background:var(--panel);border-radius:.4rem;padding:.34rem .55rem;white-space:nowrap}
+  .node.k{border-color:var(--accent);color:var(--accent)} .arrow{color:var(--faint)}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:.6rem;margin-top:1.2rem;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:38rem;font-size:.86rem}
+  th,td{text-align:left;padding:.6rem .85rem;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  thead th{font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  td code{color:var(--accent)}
+  .note{border-left:3px solid var(--accent);padding-left:.9rem;color:var(--dim);margin-top:1.2rem;font-size:.95rem}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1rem;margin-top:1.2rem}
+  .card{border:1px solid var(--line);border-radius:.6rem;background:var(--panel);padding:1rem 1.1rem}
+  .card h4{margin:0;font-size:.95rem} .card p{margin:.45rem 0 0;font-size:.88rem}
+  footer{margin-top:3rem;padding-top:1.3rem;border-top:1px solid var(--line);color:var(--faint);font-family:var(--mono);font-size:.78rem}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">team6 · technical deep-dive</p>
+  <h1>How the growing-agent harness actually works.</h1>
+  <p class="sub">The engineering under the pitch: one contract, a reward-gated loop, a self-curating memory, and
+    inference-time levers — all domain-agnostic, off-by-default, and offline-capable. .NET 8, Azure AI Foundry.</p>
+
+  <!-- 1 -->
+  <section>
+    <span class="sn">01 · the shape</span>
+    <h2>Three layers. One contract. Any domain.</h2>
+    <p>The whole system is a small BCL-only core plus two thin layers. An agent implements <strong>three
+      methods</strong> — nothing else changes per agent; the loop, memory, and tools are written once.</p>
+    <div class="flow">
+      <span class="node">agent (3 methods)</span><span class="arrow">→</span>
+      <span class="node k">AgentHarness</span><span class="arrow">·</span>
+      <span class="node">ILessonStore</span><span class="arrow">·</span>
+      <span class="node">ToolLoop</span><span class="arrow">→</span>
+      <span class="node">AgentHost (HTTP)</span>
+    </div>
+<pre><span class="k">interface</span> IAgent {
+  <span class="c">// build a draft; injected lessons up front, prior draft + critique on revisions</span>
+  Task&lt;string&gt; GenerateAsync(ctx, lessons, critique, priorDraft, attempt, ct);
+  <span class="c">// the reward — deterministic, unhackable, reproducible</span>
+  Reward Evaluate(string draft, AgentContext ctx);
+  <span class="c">// mint the lesson for a mistake the loop just fixed</span>
+  Lesson? LessonFor(string trigger, AgentContext ctx);
+}</pre>
+    <p class="note">Swap <code>Evaluate</code> and the same harness grows a value-investing agent, a code agent
+      (reward = unit tests), or a UI-from-design agent (reward = design tokens). Proven across four domains.</p>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <span class="sn">02 · the fast loop</span>
+    <h2>Improve within a run <em>and</em> run-to-run.</h2>
+<pre><span class="k">for</span> iter <span class="k">in</span> 0..MaxIters:
+  best-of-N: draw <span class="s">Samples</span> drafts, evaluate each, keep the reward's winner   <span class="c">// inference-time compute</span>
+  <span class="k">if</span> passed <span class="k">and</span> no critic objection: break
+  critique = reward.Critique (+ optional LLM/vision critic notes)          <span class="c">// revise, don't restart</span>
+<span class="k">if</span> still below threshold <span class="k">and</span> escalate is set:
+  one attempt on a STRONGER model — kept only if the reward scores it higher  <span class="c">// hard cases only</span>
+write-back: record each injected lesson's hit-rate
+learn: for every attempt-1 mistake the loop FIXED → mint a lesson → store</pre>
+    <ul>
+      <li><strong>Within a run:</strong> best-of-N + revise-on-critique + self-verify lift the draft.</li>
+      <li><strong>Run-to-run:</strong> a fixed mistake becomes a lesson; the next run retrieves it. The pipeline compounds.</li>
+      <li><strong>Invariant:</strong> the <strong>reward is the sole authority</strong> for scoring and selection. Critics and escalation only add revision signal or a fallback attempt — they never override the reward.</li>
+    </ul>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <span class="sn">03 · the reward</span>
+    <h2>One function, triple duty — and it's the training target.</h2>
+<pre><span class="k">record</span> Reward(
+  bool Pass,                       <span class="c">// hard gates</span>
+  double Score,                    <span class="c">// graded 0..1 — drives best-of-N selection</span>
+  IReadOnlyDictionary Breakdown,   <span class="c">// components (for transparency)</span>
+  IReadOnlySet FailedTriggers,     <span class="c">// which rules failed → drives learning + hit-rate</span>
+  string Critique);                <span class="c">// an actionable fix-list for the next revision</span></pre>
+    <p>It must be <strong>deterministic and unhackable</strong> — an environment check, not another LLM opinion.
+      That is what makes the loop trustworthy and what a future ART/GRPO trainer optimizes <em>verbatim</em>.</p>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <span class="sn">04 · memory</span>
+    <h2>Semantic recall, and a memory that curates itself.</h2>
+    <p>A lesson is <code>{agent | sector | trigger}</code> → warning text, an embedding, trust, and hit-rate
+      stats. Retrieval is a four-step pipeline behind the <code>ILessonStore</code> seam:</p>
+    <div class="flow">
+      <span class="node">filter: agent · sector · not-quarantined</span><span class="arrow">→</span>
+      <span class="node k">embed situation → cosine shortlist</span><span class="arrow">→</span>
+      <span class="node k">LLM recall: which APPLY?</span><span class="arrow">→</span>
+      <span class="node">two-phase load top-K</span>
+    </div>
+    <h3>Self-curation — a memory that only appends, rots</h3>
+    <ul>
+      <li><strong>Trust:</strong> learned lessons start <code>Provisional</code> → promote to <code>Verified</code> on hit-rate or a human gate. Injection-suspicious lessons are <code>Quarantined</code> and never injected.</li>
+      <li><strong>Decay + eviction:</strong> stale/low-hit lessons drop in ranking and are evicted over a per-agent cap.</li>
+      <li><strong>Conflict:</strong> re-learning the same trigger with opposing guidance (cosine &lt; 0.6) demotes the rule and resets its stats — it must re-earn trust. An optional LLM check flags cross-lesson contradictions.</li>
+      <li><strong>Dedup:</strong> near-duplicates (cosine ≥ 0.92) merge instead of piling up.</li>
+    </ul>
+    <p class="note">Same three ops (<code>Retrieve</code>/<code>Write</code>/<code>RecordApplication</code>), swappable backing: a local JSON file, or <strong>Cosmos DB with server-side vector search</strong> (DiskANN over the embedding, partition <code>/agent</code>). Verified by <code>memlife/</code> (decay/eviction/conflict) &amp; <code>abeval/</code> (retrieval holds while exact-match collapses).</p>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <span class="sn">05 · the amplifier</span>
+    <h2>Inference-time compute — a weak model, lifted.</h2>
+    <p>Four levers, each a clean seam, each <strong>off by default and inert without a live model</strong>, so
+      the offline pipeline is byte-for-byte unchanged.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Lever</th><th>How it's wired</th><th>What it buys a cheap model</th></tr></thead>
+      <tbody>
+        <tr><td>Best-of-N</td><td><code>HarnessOptions.Samples</code></td><td>the reward keeps the best of N independent drafts</td></tr>
+        <tr><td>Web-search grounding</td><td><code>WebSearchTool</code> in <code>ToolLoop</code></td><td>look facts up instead of hallucinating</td></tr>
+        <tr><td>Self-verify</td><td><code>ICritic</code> (LlmCritic / VisionCritic)</td><td>catch soft errors the deterministic reward can't</td></tr>
+        <tr><td>Escalation</td><td><code>EscalateDraft</code> + <code>Model.WithStrongModel</code></td><td>call a bigger model only on hard cases</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Injected as optional constructor deps on <code>AgentHarness</code>; the host turns them on from env
+      (<code>AGENT_SAMPLES</code>, <code>AGENT_SELF_VERIFY</code>, <code>AGENT_LLM_MODEL_STRONG</code>). No <code>IAgent</code> change.</p>
+  </section>
+
+  <!-- 6 -->
+  <section>
+    <span class="sn">06 · tools &amp; grounding</span>
+    <h2>Facts, memory, MCP, and pixels.</h2>
+    <div class="cols">
+      <div class="card"><h4>Tool loop</h4><p>OpenAI function-calling with a <strong>safety partition</strong>: read-only tools run free; mutating/outward tools must pass a permit gate.</p></div>
+      <div class="card"><h4>Real MCP</h4><p><code>McpToolSource</code> is a stdio JSON-RPC client — <code>initialize → tools/list</code>, each wrapped as a gated <code>ITool</code>. 13 tools discovered live.</p></div>
+      <div class="card"><h4>Vision</h4><p><code>CompleteVisionAsync</code> grounds UI generation in a design image, and powers a <strong>vision critic</strong> that compares output to the target.</p></div>
+    </div>
+    <h3>UI-from-design: three tiers of grounding</h3>
+    <ul>
+      <li><strong>Tier 1 — image:</strong> generate <em>from</em> the Figma screenshot (multimodal), not a text description.</li>
+      <li><strong>Tier 2 — vision critique:</strong> the model compares its output to the target and iterates on the visual/behavioural diffs (clickable stars, disabled Save), learning them.</li>
+      <li><strong>Tier 3 — exact tokens:</strong> ground on <code>get_design_context</code> — the design system's real values (<code>#6f42c1</code>, Poppins, the gradient). The harness reaches for the precise tool, the way <code>web_search</code> grounds a fact.</li>
+    </ul>
+  </section>
+
+  <!-- 7 -->
+  <section>
+    <span class="sn">07 · cost</span>
+    <h2>Metered tokens, and the escalation lever.</h2>
+    <p>Every completion records its <code>usage</code> to a <code>CostLedger</code>, so a run's cost is a real
+      number — not an estimate. The cost-optimization win is <strong>escalation</strong>: run mini+harness, and
+      the reward escalates to the frontier model only on the tasks it can't crack.</p>
+<pre><span class="c">// measured vs gpt-5.1, 15 hard reasoning traps (escbench)</span>
+always gpt-5.1          10/15   $0.01362   <span class="c">premium on 15/15</span>
+cheap-first + escalate  10/15   $0.00975   <span class="c">premium on  6/15  → ~72% of frontier cost</span></pre>
+    <p class="note">The reward is the escalation gate — a deterministic "does this need the frontier model?" signal.
+      Same quality (even gpt-5.1 solves only 10/15), a fraction of the cost, on a model you control.</p>
+  </section>
+
+  <!-- 8 -->
+  <section>
+    <span class="sn">08 · the flywheel</span>
+    <h2>Every run is training data — for free.</h2>
+    <p>The loop keeps every <code>(draft, reward)</code> in <code>HarnessOutcome.Attempts</code>;
+      <code>TrainingExporter</code> turns a run into three trainer-ready shapes:</p>
+    <ul>
+      <li><strong>SFT</strong> — the winning completion as the target (imitation).</li>
+      <li><strong>Preference / DPO</strong> — best vs a lower-scored attempt (reward-model data).</li>
+      <li><strong>RL / GRPO</strong> — every attempt tagged with its scalar reward (policy-gradient data).</li>
+    </ul>
+    <p class="note">We don't need ART to ship — the fast loop already grows the agent. But the moment a GPU appears,
+      the dataset already exists. That's "ART-ready" made concrete (<code>flywheel/</code>).</p>
+  </section>
+
+  <!-- 9 -->
+  <section>
+    <span class="sn">09 · why not ART directly</span>
+    <h2>The fast loop is the Foundry-only rung.</h2>
+    <p>ART (OpenPipe's Agent Reinforcement Trainer) makes a model better by <strong>changing its weights</strong> —
+      it needs GPU compute, open weights, a training backend, and gradient access. A hosted Foundry model gives
+      you none of those. Our pattern optimizes the <strong>same reward</strong> without touching weights: it improves
+      the <em>context</em> (retrieved lessons + revision), live, on a plain inference endpoint. ART is the optional
+      slow loop — a later, GPU-bound upgrade that reuses the exact reward and the flywheel's data. Not a dependency.</p>
+  </section>
+
+  <footer>
+    .NET 8 · Azure AI Foundry · github.com/BuiDoanKhanhAnPrecioFishbone/team6-growing-agent-pattern
+    &nbsp;·&nbsp; source of truth: PATTERN.md · run every claim: README.md
+  </footer>
+</div>
+</body>
+</html>
