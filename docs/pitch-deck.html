@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Growing-Agent Pattern — Pitch</title>
+<style>html{-webkit-text-size-adjust:100%}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+  :root{
+    --ink:#0a1310; --panel:#0e1814; --panel-2:#0c1512; --line:#1d2c25;
+    --fg:#cfdad2; --dim:#8ba095; --faint:#5f7268;
+    --accent:#3ddc97; --bad:#e2726a; --warn:#d7a24e; --cool:#57b7c7;
+    --mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:light){:root{
+    --ink:#f2f5f1;--panel:#fff;--panel-2:#f7faf7;--line:#dde6df;--fg:#132019;--dim:#516158;--faint:#7d8d83;
+    --accent:#0f7a54;--bad:#b0473e;--warn:#96702a;--cool:#2b7d8c;}}
+  :root[data-theme="dark"]{--ink:#0a1310;--panel:#0e1814;--panel-2:#0c1512;--line:#1d2c25;--fg:#cfdad2;--dim:#8ba095;--faint:#5f7268;--accent:#3ddc97;--bad:#e2726a;--warn:#d7a24e;--cool:#57b7c7;}
+  :root[data-theme="light"]{--ink:#f2f5f1;--panel:#fff;--panel-2:#f7faf7;--line:#dde6df;--fg:#132019;--dim:#516158;--faint:#7d8d83;--accent:#0f7a54;--bad:#b0473e;--warn:#96702a;--cool:#2b7d8c;}
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--fg);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .slide{max-width:60rem;margin:0 auto;padding:clamp(2.5rem,7vh,5rem) clamp(1.25rem,5vw,3rem);min-height:86vh;
+    display:flex;flex-direction:column;justify-content:center;border-bottom:1px solid var(--line)}
+  .slide:last-child{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:0 0 1.4rem;display:flex;gap:.9rem;align-items:center}
+  .eyebrow .n{color:var(--faint);border:1px solid var(--line);border-radius:1rem;padding:.1rem .55rem}
+  h1{font-family:var(--mono);font-weight:600;letter-spacing:-.015em;line-height:1.1;margin:0;font-size:clamp(2rem,6vw,3.4rem);text-wrap:balance}
+  h2{font-weight:600;line-height:1.15;margin:0;font-size:clamp(1.5rem,4vw,2.3rem);text-wrap:balance}
+  .hl{color:var(--accent)}
+  .lede{color:var(--dim);font-size:clamp(1.05rem,2vw,1.35rem);max-width:44ch;margin:1.4rem 0 0}
+  p{margin:1rem 0 0}
+  a{color:var(--accent)}
+  strong{color:var(--fg);font-weight:600}
+
+  .grid{display:grid;gap:1rem;margin-top:1.8rem}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))}
+  .card{border:1px solid var(--line);border-radius:.7rem;background:var(--panel);padding:1.15rem 1.25rem}
+  .card h3{margin:0;font-size:1rem;display:flex;align-items:center;gap:.5rem}
+  .card p{margin:.5rem 0 0;font-size:.9rem;color:var(--dim)}
+  .card .k{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);border:1px solid var(--line);border-radius:1rem;padding:.1rem .5rem}
+
+  .loop{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-top:1.6rem;font-family:var(--mono);font-size:.82rem}
+  .node{border:1px solid var(--line);background:var(--panel);border-radius:.4rem;padding:.38rem .6rem;white-space:nowrap}
+  .node.k{border-color:var(--accent);color:var(--accent)}
+  .arrow{color:var(--faint)}
+
+  .stats{display:flex;flex-wrap:wrap;gap:.7rem;margin-top:1.8rem}
+  .stat{border:1px solid var(--line);border-radius:.6rem;background:var(--panel);padding:.8rem 1.05rem;min-width:8.5rem}
+  .stat b{display:block;font-family:var(--mono);font-size:1.5rem;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1.1}
+  .stat span{font-size:.76rem;color:var(--dim)}
+
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:.7rem;margin-top:1.8rem;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:34rem}
+  th,td{text-align:left;padding:.75rem 1rem;border-bottom:1px solid var(--line);font-size:.9rem;vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  thead th{font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  td .res{font-family:var(--mono);font-size:.86rem;font-variant-numeric:tabular-nums}
+  .good{color:var(--accent)} .bad{color:var(--bad)}
+
+  /* cost bars */
+  .cost{margin-top:2rem;display:flex;flex-direction:column;gap:.9rem}
+  .crow{display:grid;grid-template-columns:minmax(9rem,14rem) 1fr auto;gap:.9rem;align-items:center}
+  .cname{font-family:var(--mono);font-size:.82rem}
+  .cbarwrap{background:var(--panel-2);border:1px solid var(--line);border-radius:.35rem;height:1.5rem;position:relative;overflow:hidden}
+  .cbar{height:100%;border-radius:.35rem;display:flex;align-items:center;padding:0 .55rem;font-family:var(--mono);font-size:.72rem;color:#06140d;font-weight:600;white-space:nowrap}
+  .cmeta{font-family:var(--mono);font-size:.8rem;color:var(--dim);text-align:right;white-space:nowrap}
+  .punch{color:var(--accent);font-size:clamp(1.05rem,2.2vw,1.35rem);margin-top:1.8rem;border-left:3px solid var(--accent);padding-left:.9rem;text-wrap:balance}
+
+  ul.clean{list-style:none;margin:1.6rem 0 0;padding:0;display:flex;flex-direction:column;gap:.8rem}
+  ul.clean li{position:relative;padding-left:1.3rem;color:var(--dim);font-size:1rem}
+  ul.clean li::before{content:"▹";position:absolute;left:0;color:var(--accent)}
+  ul.clean li strong{color:var(--fg)}
+
+  .foot{font-family:var(--mono);font-size:.78rem;color:var(--faint);margin-top:2rem}
+  @media (prefers-reduced-motion:no-preference){.cbar{transition:width .5s ease}}
+</style>
+
+<!-- 1 · TITLE -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">team6</span> Omnia-PF-Hackathon-2026</p>
+  <h1>A cheap model plus a good harness <span class="hl">performs like a frontier one —</span> and gets cheaper as it learns.</h1>
+  <p class="lede">The Growing-Agent Pattern — a reusable .NET harness on Azure AI Foundry. No GPU, no
+    fine-tuning. Every claim in this deck is a program you can run.</p>
+</section>
+
+<!-- 2 · PROBLEM -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">01</span> The problem</p>
+  <h2>Frontier models are expensive — and <span class="hl">flat-expensive forever.</span></h2>
+  <p class="lede">The 10,000th call costs the same as the first. Cheap models are affordable but weak. And
+    Omnia doesn't run one agent — it runs <strong>many</strong>: screen, draft, review, summarize. Cost and
+    quality both matter, at scale.</p>
+</section>
+
+<!-- 3 · THE BET -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">02</span> The bet</p>
+  <h2>Don't reach for a bigger model. <span class="hl">Build a harness around a cheap one.</span></h2>
+  <p class="lede">An agent is a <strong>policy</strong> in a deterministic environment, judged by <strong>one
+    reward</strong> that gates it now — and could train it later. It improves two ways:</p>
+  <div class="grid g2">
+    <div class="card"><h3>Within a run <span class="k">inference-time</span></h3><p>sample several drafts, ground with tools, self-verify, and let the reward keep the best.</p></div>
+    <div class="card"><h3>Run-to-run <span class="k">memory</span></h3><p>every fixed mistake becomes a lesson the next run recalls. The pipeline compounds — and cost drops.</p></div>
+  </div>
+</section>
+
+<!-- 4 · WHAT WE BUILT -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">03</span> What we built</p>
+  <h2>One reward. One loop. One contract. <span class="hl">Any domain.</span></h2>
+  <div class="loop">
+    <span class="node k">generate ×N</span><span class="arrow">→</span>
+    <span class="node k">reward</span><span class="arrow">→</span>
+    <span class="node">retrieve lesson</span><span class="arrow">→</span>
+    <span class="node">revise</span><span class="arrow">→</span>
+    <span class="node k">keep best</span><span class="arrow">→</span>
+    <span class="node">learn</span>
+  </div>
+  <div class="grid g3">
+    <div class="card"><h3>Amplifier</h3><p>best-of-N · web-search · self-verify · escalation — a weak model, lifted.</p></div>
+    <div class="card"><h3>Memory ×2</h3><p>self-curating lessons (trust, decay, conflict) + short-term context compaction.</p></div>
+    <div class="card"><h3>Tools</h3><p><code>web_search</code>, <code>memory_search</code>, vision, and <strong>any MCP server</strong>.</p></div>
+  </div>
+  <p class="foot">Swap the reward → the same harness grows a value-investing agent, a code agent, or a UI-from-design agent. Proven across four.</p>
+</section>
+
+<!-- 5 · DEMO -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">04</span> The demo · live</p>
+  <h2>Same <span class="hl">gpt-4.1-mini</span> on both sides. One has a harness.</h2>
+  <p class="lede">Left is a raw completion — the Foundry playground. Right runs that same model through the
+    harness. From a Figma design it grounds on the real tokens and <strong>learns</strong> them; on a stale
+    fact it <strong>learns to search</strong>; run again and it <strong>recalls</strong> — first try.</p>
+  <ul class="clean">
+    <li><strong>UI from a Figma card</strong> — generic vs design-matched (violet, gold stars, right buttons, clickable, Save disabled).</li>
+    <li><strong>Factual QA</strong> — "Warren Buffett" (wrong) → learns <code>web_search</code> → "Greg Abel".</li>
+    <li><strong>Run again</strong> — the harness recalls its lessons; the playground never changes.</li>
+  </ul>
+</section>
+
+<!-- 6 · RESULTS -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">05</span> The proof · measured</p>
+  <h2>Not asserted — <span class="hl">every row is a program you can run.</span></h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Claim</th><th>Result</th><th>Run</th></tr></thead>
+      <tbody>
+        <tr><td>Real-reward learning</td><td class="res"><b class="good">80%</b> first-try with memory · <b class="bad">0%</b> without</td><td class="res">codeagent</td></tr>
+        <tr><td>Memory that scales with noise</td><td class="res">semantic <b class="good">1.000</b> vs exact-match → <b class="bad">0</b></td><td class="res">abeval</td></tr>
+        <tr><td>Grounding beats guessing</td><td class="res">bare <b>5/6</b> → +web <b class="good">6/6</b></td><td class="res">ampeval</td></tr>
+        <tr><td>Context under budget</td><td class="res">compaction recalls · truncation <span class="bad">confabulates</span></td><td class="res">ctxdemo</td></tr>
+        <tr><td>Real MCP tools</td><td class="res"><b>13</b> discovered &amp; called live</td><td class="res">mcptest</td></tr>
+        <tr><td>Training-ready</td><td class="res"><b>5</b> SFT · <b>5</b> pref · <b>10</b> RL per 5 runs</td><td class="res">flywheel</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 7 · COST (money slide) -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">06</span> The cost thesis · vs gpt-5.1</p>
+  <h2>Frontier quality. <span class="hl">A fraction of the cost. And it keeps falling.</span></h2>
+  <div class="cost">
+    <div class="crow"><div class="cname">bare mini</div><div class="cbarwrap"><div class="cbar" style="width:29%;background:var(--faint)">$0.00138</div></div><div class="cmeta">3/5 · wrong</div></div>
+    <div class="crow"><div class="cname">mini + harness · cold</div><div class="cbarwrap"><div class="cbar" style="width:100%;background:var(--accent)">$0.00489</div></div><div class="cmeta">4/5</div></div>
+    <div class="crow"><div class="cname">mini + harness · warm</div><div class="cbarwrap"><div class="cbar" style="width:76%;background:var(--accent)">$0.00374</div></div><div class="cmeta">4/5 · learned</div></div>
+    <div class="crow"><div class="cname">frontier · gpt-5.1</div><div class="cbarwrap"><div class="cbar" style="width:97%;background:var(--bad)">$0.00475</div></div><div class="cmeta">4/5 · flat</div></div>
+  </div>
+  <p class="punch">mini+harness <strong>matches gpt-5.1's quality</strong> at ~79% of its cost once warm — and unlike gpt-5.1, it gets <strong>cheaper every time it learns.</strong></p>
+  <p class="foot">Reasoning-trap suite via a token-level cost ledger. Prices configurable to your Azure rates; token counts are exact.</p>
+</section>
+
+<!-- 8 · WHY OMNIA -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">07</span> Why it matters · Precio Fishbone / Omnia</p>
+  <h2>Cheaper AI that <span class="hl">gets better with use.</span></h2>
+  <div class="grid g2">
+    <div class="card"><h3>Cheaper at scale</h3><p>run gpt-4.1-mini everywhere; escalate only where a task needs it; cost falls as agents learn.</p></div>
+    <div class="card"><h3>Learns from your experts</h3><p>a reviewer's correction becomes a durable, trusted lesson — knowledge work compounds.</p></div>
+    <div class="card"><h3>Deployable today</h3><p>plain Foundry endpoint · Cosmos DB vector memory · a followable pattern (skill + NuGet + docs).</p></div>
+    <div class="card"><h3>Future-proof</h3><p>every run exports training data — the day a GPU appears, we fine-tune with zero rework.</p></div>
+  </div>
+</section>
+
+<!-- 9 · CLOSE -->
+<section class="slide">
+  <p class="eyebrow"><span class="n">08</span> The takeaway</p>
+  <h2>We didn't build one clever agent. <span class="hl">We built the substrate that makes any cheap-model agent grow.</span></h2>
+  <div class="stats">
+    <div class="stat"><b>≈ gpt-5.1</b><span>quality, on gpt-4.1-mini</span></div>
+    <div class="stat"><b>↓ cost</b><span>drops as it learns</span></div>
+    <div class="stat"><b>0 GPU</b><span>plain Azure Foundry</span></div>
+    <div class="stat"><b>4</b><span>domains, one harness</span></div>
+  </div>
+  <p class="foot">github.com/BuiDoanKhanhAnPrecioFishbone/team6-growing-agent-pattern · .NET 8 · Azure AI Foundry</p>
+</section>
+</body>
+</html>

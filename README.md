@@ -32,11 +32,12 @@ pack.ps1                             pack the harness as NuGet, to build agents 
 .claude/skills/build-growing-agent/  the pattern as a skill — coding agents (Claude Code / Codex) follow it
 PATTERN.md · RUNNING.md              the playbook (why & the contract) & how to run + wire credentials
 docs/
-  harness-results.html               one-page results overview (open in a browser)
+  PITCH.md                           the pitch: submission narrative + 5-min demo run-of-show + Q&A
+  pitch-deck.html                    presentation deck (open in a browser)
+  harness-results.html               one-page results overview
   START-A-NEW-REPO.md                build agents in another repo (NuGet or vendor the harness)
   COSMOS-MEMORY.md                   persist lessons/context/memory in Cosmos DB (vector search)
   FOUNDRY-SETUP.md                   find your Foundry endpoint, key & deployment names
-  + pitch one-pagers (HTML)
 ```
 
 **Three ways to build a new agent** — inside this repo (`_template`), in a separate repo
