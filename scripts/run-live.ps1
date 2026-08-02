@@ -20,7 +20,8 @@ if (-not $env:AGENT_LLM_BASE_URL -or -not $env:AGENT_LLM_MODEL) {
   Write-Host "AGENT_LLM_* not set — see the header of this script (docs/FOUNDRY-SETUP.md)." -ForegroundColor Yellow
   Pop-Location; exit 1
 }
-Write-Host ("model = {0}   strong = {1}`n" -f $env:AGENT_LLM_MODEL, ($env:AGENT_LLM_MODEL_STRONG ?? "(unset)")) -ForegroundColor Cyan
+$strong = if ($env:AGENT_LLM_MODEL_STRONG) { $env:AGENT_LLM_MODEL_STRONG } else { "(unset)" }
+Write-Host ("model = {0}   strong = {1}`n" -f $env:AGENT_LLM_MODEL, $strong) -ForegroundColor Cyan
 
 Write-Host "1/3  per-lever ablation  (memory / best-of-N / self-verify / escalation)" -ForegroundColor Cyan
 dotnet run --project ablate
