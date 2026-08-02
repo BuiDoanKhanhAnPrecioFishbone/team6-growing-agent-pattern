@@ -1,12 +1,10 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# run-evidence.ps1 — reproduce the whole evidence pack in one command.
+# run-evidence.ps1 - reproduce the whole evidence pack in one command.
 # Runs every DETERMINISTIC proof (offline, no model, no GPU) and tallies pass/fail
 # by exit code, then runs the demo/pipeline proofs that emit datasets. The live-only
 # proofs (ablate per-lever table, compare quality/cost, a real slowloop bake) need a
 # Foundry deployment (AGENT_LLM_*) and are listed at the end.
 #
-#   pwsh scripts/run-evidence.ps1
-# ─────────────────────────────────────────────────────────────────────────────
+#   powershell -File scripts\run-evidence.ps1      (or: pwsh scripts/run-evidence.ps1)
 $ErrorActionPreference = "Continue"
 $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
