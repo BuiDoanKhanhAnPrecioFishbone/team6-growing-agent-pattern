@@ -16,7 +16,8 @@ $deterministic = @(
   @{ name = "consolidation     (memory self-summarizes, 6->2)";     proj = "memcon"      },
   @{ name = "guardrails        (memory poisoning defense, MINJA)";  proj = "guardbench"  },
   @{ name = "skill tier        (contrast -> verify -> transfer)";   proj = "skillbench"  },
-  @{ name = "personalization   (scoped memory, no leakage)";        proj = "personalize" }
+  @{ name = "personalization   (scoped memory, no leakage)";        proj = "personalize" },
+  @{ name = "confidence        (know when you don't know)";         proj = "confbench"   }
 )
 
 $pass = 0; $fail = 0
