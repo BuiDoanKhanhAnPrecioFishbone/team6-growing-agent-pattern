@@ -62,23 +62,27 @@ public sealed class SemanticLessonStore : ILessonStore
         List<Lesson> candidates;
         lock (_lock)
         {
-            // Step 1 — cheap metadata filter: this agent, this sector (or global), injectable (not Quarantined).
+            // Step 1 — cheap metadata filter: this agent, this sector (or global), injectable (not Quarantined),
+            // and ACTIVE (not a superseded tombstone — those are kept only for audit history).
             candidates = _lessons
-                .Where(l => l.Agent == agent && (l.Sector == features.Sector || l.Sector == "*") && l.Trust != Trust.Quarantined)
+                .Where(l => l.Agent == agent && (l.Sector == features.Sector || l.Sector == "*")
+                            && l.Trust != Trust.Quarantined && string.IsNullOrEmpty(l.ValidTo))
                 .Select(Clone).ToList();
         }
         if (candidates.Count == 0) return Array.Empty<Lesson>();
 
-        // No situation → v1 behaviour (hit-rate ordering).
+        // No situation → v1 behaviour (hit-rate then importance ordering).
         if (string.IsNullOrWhiteSpace(features.Situation))
-            return candidates.OrderByDescending(l => l.HitRate).ThenByDescending(l => l.Date).Take(topK).ToList();
+            return candidates.OrderByDescending(l => l.HitRate).ThenByDescending(l => l.Importance).ThenByDescending(l => l.Date).Take(topK).ToList();
 
         // Step 2 — vector shortlist: cosine of the situation against each lesson's embedding, folding in
-        // decay + trust when lifecycle is on (a stale or provisional lesson ranks below a fresh verified one).
+        // decay + trust when lifecycle is on, and a gentle IMPORTANCE nudge (Generative-Agents: a stored
+        // poignancy term alongside relevance) so a critical rule outranks an incidental one at equal similarity.
         var q = await _embedder.EmbedAsync(features.Situation, ct);
         var shortlisted = candidates
             .Select(l => (l, score: (l.Embedding.Length > 0 ? Vec.Cosine(q, l.Embedding) : 0)
-                                    * (_halfLife > 0 ? RecencyWeight(l) * TrustWeight(l) : 1.0)))
+                                    * (_halfLife > 0 ? RecencyWeight(l) * TrustWeight(l) : 1.0)
+                                    * (0.7 + 0.3 * Math.Clamp(l.Importance, 0, 1))))
             .OrderByDescending(x => x.score).ThenByDescending(x => x.l.HitRate)
             .Take(Math.Max(topK, _shortlist))
             .Select(x => x.l)
@@ -118,6 +122,9 @@ public sealed class SemanticLessonStore : ILessonStore
         return null;
     }
 
+    /// <summary>Public defense-in-depth check — does this lesson trip injection validation? (Used by the audit.)</summary>
+    public static bool LooksInjected(Lesson l) => InjectionReason(l) is not null;
+
     public async Task WriteAsync(Lesson lesson, CancellationToken ct = default)
     {
         // 1. injection-validation → Trust. Suspicious ⇒ Quarantined (stored, never injected). New learned ⇒ Provisional.
@@ -130,6 +137,9 @@ public sealed class SemanticLessonStore : ILessonStore
             var basis = string.IsNullOrWhiteSpace(lesson.Condition) ? lesson.Warning : $"{lesson.Condition} — {lesson.Warning}";
             lesson.Embedding = await _embedder.EmbedAsync(basis, ct);
         }
+
+        // 2b. score importance (pre-lock; used if this becomes a new row — a re-learn keeps its own score).
+        lesson.Importance = await Importance.ScoreAsync(lesson, ct);
 
         // Optional semantic conflict flag (inert offline): if this new rule contradicts an existing VERIFIED
         // one, note it on provenance for human review — non-destructive, awaited outside the lock.
@@ -159,14 +169,27 @@ public sealed class SemanticLessonStore : ILessonStore
                 // it must re-earn its place. This is how the memory self-corrects instead of trusting stale.
                 var diverged = existing.Embedding.Length > 0 && lesson.Embedding.Length > 0
                                && Vec.Cosine(existing.Embedding, lesson.Embedding) < ConflictTheta;
-                existing.Warning = lesson.Warning; existing.Condition = lesson.Condition; existing.Type = lesson.Type;
-                existing.Embedding = lesson.Embedding; existing.Date = lesson.Date;
                 if (diverged && existing.Trust != Trust.Quarantined)
                 {
+                    // bi-temporal supersede (Zep): don't destroy the old rule — TOMBSTONE a snapshot of it
+                    // (kept for audit, never retrieved) and let the active id carry the new, demoted rule.
+                    var tomb = Clone(existing);
+                    tomb.Id = $"{existing.Id}#v{_lessons.Count(l => l.SupersededBy == existing.Id) + 1}";
+                    tomb.ValidTo = lesson.Date; tomb.SupersededBy = existing.Id;
+                    _lessons.Add(tomb);
+
+                    existing.Warning = lesson.Warning; existing.Condition = lesson.Condition; existing.Type = lesson.Type;
+                    existing.Embedding = lesson.Embedding; existing.Date = lesson.Date;
                     existing.Trust = Trust.Provisional; existing.TimesApplied = 0; existing.TimesHelped = 0; existing.HitRate = 0;
+                    existing.HelpedContexts.Clear();
                     existing.LearnedFrom = lesson.LearnedFrom + " (superseded a conflicting prior rule)";
                 }
-                else existing.LearnedFrom = lesson.LearnedFrom;
+                else
+                {
+                    existing.Warning = lesson.Warning; existing.Condition = lesson.Condition; existing.Type = lesson.Type;
+                    existing.Embedding = lesson.Embedding; existing.Date = lesson.Date;
+                    existing.LearnedFrom = lesson.LearnedFrom;
+                }
                 Save(); return;
             }
             // 3. dedup/merge — a near-duplicate of an existing (non-quarantined) lesson refreshes it instead of piling up
@@ -187,7 +210,7 @@ public sealed class SemanticLessonStore : ILessonStore
         }
     }
 
-    public Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default)
+    public Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default, string? context = null)
     {
         lock (_lock)
         {
@@ -197,14 +220,24 @@ public sealed class SemanticLessonStore : ILessonStore
                 l.TimesApplied++;
                 if (helped) l.TimesHelped++;
                 l.HitRate = l.TimesApplied == 0 ? 0 : Math.Round((double)l.TimesHelped / l.TimesApplied, 4);
+                // record the DISTINCT situation it helped in (capped) — the corroboration signal for promotion.
+                if (helped && !string.IsNullOrWhiteSpace(context) && !l.HelpedContexts.Contains(context!) && l.HelpedContexts.Count < 8)
+                    l.HelpedContexts.Add(context!);
                 l.LastUsed = l.Date;
-                // promotion: a provisional lesson that keeps helping earns Verified.
-                if (l.Trust == Trust.Provisional && l.TimesHelped >= PromoteAfter && l.HitRate >= 0.6) l.Trust = Trust.Verified;
+                // corroboration-gated promotion: to earn Verified a provisional lesson must have helped across
+                // ≥2 DISTINCT situations — so a poisoned lesson can't self-promote by repeating one crafted case.
+                // Falls back to raw helpful-count when no situation is supplied, so the no-situation path is unchanged.
+                var support = l.HelpedContexts.Count > 0 ? l.HelpedContexts.Count : l.TimesHelped;
+                if (l.Trust == Trust.Provisional && support >= PromoteAfter && l.HitRate >= 0.6) l.Trust = Trust.Verified;
                 Save();
             }
         }
         return Task.CompletedTask;
     }
+
+    /// <summary>Set a lesson's trust — used by the memory audit to re-quarantine anything that slipped through.</summary>
+    public Task SetTrustAsync(string id, Trust trust, CancellationToken ct = default)
+    { lock (_lock) { var l = _lessons.FirstOrDefault(x => x.Id == id); if (l is not null) { l.Trust = trust; Save(); } } return Task.CompletedTask; }
 
     /// <summary>Human confirmation at a gate promotes a provisional lesson to Verified.</summary>
     public Task PromoteAsync(string id, CancellationToken ct = default)
@@ -322,5 +355,6 @@ public sealed class SemanticLessonStore : ILessonStore
         Id = l.Id, Agent = l.Agent, Sector = l.Sector, Trigger = l.Trigger, Warning = l.Warning,
         LearnedFrom = l.LearnedFrom, Date = l.Date, TimesApplied = l.TimesApplied, TimesHelped = l.TimesHelped, HitRate = l.HitRate,
         Type = l.Type, Condition = l.Condition, Embedding = l.Embedding, Trust = l.Trust, LastUsed = l.LastUsed,
+        Importance = l.Importance, HelpedContexts = new(l.HelpedContexts), ValidTo = l.ValidTo, SupersededBy = l.SupersededBy,
     };
 }

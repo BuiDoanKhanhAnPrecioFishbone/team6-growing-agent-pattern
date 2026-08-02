@@ -16,8 +16,10 @@ public interface ILessonStore
     /// <summary>Upsert by Id. A re-learned lesson refreshes its text but KEEPS its accumulated stats.</summary>
     Task WriteAsync(Lesson lesson, CancellationToken ct = default);
 
-    /// <summary>hitRate = timesHelped / timesApplied. A lesson that stops helping decays out of retrieval.</summary>
-    Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default);
+    /// <summary>hitRate = timesHelped / timesApplied. A lesson that stops helping decays out of retrieval.
+    /// <paramref name="context"/> (the situation it helped in) is recorded so promotion can require
+    /// corroboration across DISTINCT situations — a poisoned lesson can't self-promote by repeating one case.</summary>
+    Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default, string? context = null);
 
     /// <summary>Everything the store holds — for the GET /lessons inspector.</summary>
     Task<IReadOnlyList<Lesson>> AllAsync(CancellationToken ct = default);

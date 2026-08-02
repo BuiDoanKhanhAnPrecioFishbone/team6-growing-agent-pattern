@@ -54,7 +54,7 @@ public sealed class JsonLessonStore : ILessonStore
         return Task.CompletedTask;
     }
 
-    public Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default)
+    public Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default, string? context = null)
     {
         lock (_lock)
         {
@@ -101,5 +101,6 @@ public sealed class JsonLessonStore : ILessonStore
         LearnedFrom = l.LearnedFrom, Date = l.Date,
         TimesApplied = l.TimesApplied, TimesHelped = l.TimesHelped, HitRate = l.HitRate,
         Type = l.Type, Condition = l.Condition, Embedding = l.Embedding, Trust = l.Trust, LastUsed = l.LastUsed,
+        Importance = l.Importance, HelpedContexts = new(l.HelpedContexts), ValidTo = l.ValidTo, SupersededBy = l.SupersededBy,
     };
 }

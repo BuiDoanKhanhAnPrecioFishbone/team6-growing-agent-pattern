@@ -136,7 +136,7 @@ public sealed class CosmosSemanticLessonStore : ILessonStore
         await container.UpsertItemAsync(lesson, new PartitionKey(lesson.Agent), cancellationToken: ct);
     }
 
-    public async Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default)
+    public async Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default, string? context = null)
     {
         var container = await _container.Value;
         var agent = id.Split('|', 2)[0]; // Id = "{agent}|{sector}|{trigger}"
@@ -146,7 +146,10 @@ public sealed class CosmosSemanticLessonStore : ILessonStore
             l.TimesApplied++;
             if (helped) l.TimesHelped++;
             l.HitRate = l.TimesApplied == 0 ? 0 : Math.Round((double)l.TimesHelped / l.TimesApplied, 4);
-            if (l.Trust == Trust.Provisional && l.TimesHelped >= 2 && l.HitRate >= 0.6) l.Trust = Trust.Verified;
+            // corroboration: record the DISTINCT situation it helped in (capped) — promotion needs ≥2 of them.
+            if (helped && !string.IsNullOrWhiteSpace(context) && !l.HelpedContexts.Contains(context!))
+            { if (l.HelpedContexts.Count < 8) l.HelpedContexts.Add(context!); }
+            if (l.Trust == Trust.Provisional && l.HelpedContexts.Count >= 2 && l.HitRate >= 0.6) l.Trust = Trust.Verified;
             await container.UpsertItemAsync(l, new PartitionKey(agent), cancellationToken: ct);
         }
         catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound) { /* nothing to record */ }

@@ -67,6 +67,12 @@ public sealed class Lesson
     public float[] Embedding { get; set; } = Array.Empty<float>(); // vector of (Condition + summary)
     public Trust Trust { get; set; } = Trust.Provisional;       // learned lessons start Provisional; promote on hit-rate or a human gate
     public string LastUsed { get; set; } = "";                  // for staleness
+
+    // ── Memory v3 (governance & security) ──
+    public double Importance { get; set; } = 0.5;               // stored 0–1 poignancy (Generative-Agents); a ranking term
+    public List<string> HelpedContexts { get; set; } = new();   // DISTINCT situations it helped in — corroboration for promotion
+    public string ValidTo { get; set; } = "";                   // bi-temporal tombstone (non-empty ⇒ superseded, never retrieved)
+    public string SupersededBy { get; set; } = "";              // provenance: the lesson that replaced this one
 }
 
 /// <summary>Everything an agent needs for one run. The Input is the candidate-file fragment (passthrough).</summary>
@@ -252,7 +258,7 @@ public sealed class AgentHarness
         // ── write-back: record each injected lesson's outcome (did it prevent its own mistake?) ──
         var firstFails = firstReward!.FailedTriggers;
         foreach (var l in injected)
-            await _memory.RecordApplicationAsync(l.Id, helped: !firstFails.Contains(l.Trigger), ct);
+            await _memory.RecordApplicationAsync(l.Id, helped: !firstFails.Contains(l.Trigger), ct, context: ctx.Features.Situation);
 
         // ── learn: for every mistake attempt-1 made that the loop then FIXED, mint a lesson ──
         var learned = new List<string>();

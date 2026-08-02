@@ -74,7 +74,7 @@ public sealed class CosmosLessonStore : ILessonStore
         await container.UpsertItemAsync(toWrite, new PartitionKey(toWrite.Agent), cancellationToken: ct);
     }
 
-    public async Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default)
+    public async Task RecordApplicationAsync(string id, bool helped, CancellationToken ct = default, string? context = null)
     {
         var container = await _container.Value;
         var agent = id.Split('|', 2)[0]; // Id = "{agent}|{sector}|{trigger}" — the partition key is the agent
