@@ -19,7 +19,7 @@ A single reference for presenting and defending the work. Part 1 is the story yo
 
 **The economics — the diamond.** The most expensive thing in AI is labeled data. We get it *free*: every time someone uses the agent, the reward labels which step was right or wrong. Ordinary usage is the coal; the reward loop is the press; verified lessons + labeled examples are the diamonds. No user research, no labeling budget — ~2.7 labeled examples mined per interaction, forever.
 
-**The proof.** On a live Foundry model, gpt-4.1-mini + harness matches gpt-5.1's pass rate, and escalation reaches frontier quality at ~72% of the cost. Everything else — compounding, poisoning-resistance, skill-transfer, self-summarizing memory, personalization, and the free-data meter — is proven by deterministic benchmarks you can re-run in one command.
+**The proof.** On a live Foundry model, gpt-4.1-mini + harness matches gpt-5.1's pass rate, and escalation reaches frontier quality at ~72% of the cost. Everything else — compounding, poisoning-resistance, skill-transfer, self-summarizing memory, personalization, the free-data meter, confidence/abstention, and a self-directed practice curriculum — is proven by deterministic benchmarks you can re-run in one command.
 
 **The honest line (say this — it builds trust).** "We're not a competitor to Microsoft Agent Framework or Foundry — those are the runtime. We're the *learning layer* they don't have. And where we overlap with them (tool-calling, MCP), use theirs; ours is deliberately minimal so it's portable."
 
@@ -110,6 +110,20 @@ A single reference for presenting and defending the work. Part 1 is the story yo
 - **Why efficient:** personalization with **no per-user fine-tuning** — it's a scope, not a new system; a brand-new user inherits global/team lessons on day one (no cold-start void), then personalizes from their own use.
 - **References:** hierarchical/multi-tenant memory; this credibility-axis scoping is our own.
 
+### 3.12 Confidence & abstention — `ConfidencePolicy` (knows when it doesn't know)
+- **What:** in a large domain the honest failure mode is bluffing on an unseen case; this decides when to answer, flag, escalate, or abstain.
+- **How:** `ConfidencePolicy.Assess` turns a run into a confidence + action (Answer / Verify / Escalate / Abstain) from the reward score, recall (charted vs uncharted), and stability (did the attempts agree). Post-hoc, non-invasive.
+- **Code:** `Confidence.cs`; proof in `confbench`.
+- **Why efficient:** it spends the stronger model (or a human's attention) only where confidence is low, and turns each abstention into the next lesson.
+- **References:** calibration / selective prediction; compute-optimal escalation (Snell).
+
+### 3.13 Curriculum — `Curriculum` (directed practice)
+- **What:** turn the free-data exhaust into a ranked plan of what to drill next.
+- **How:** `Curriculum.Propose` ranks weak skills (checks failing most often), unproven Provisional lessons (confirm or retire), and regressing Verified lessons (re-validate); an optional model turns a target into a concrete drill task.
+- **Code:** `Curriculum.cs`; proof in `curriculum`.
+- **Why efficient:** the agent improves *on purpose* — practice goes where it moves the reward, not wherever usage happened to land.
+- **References:** Voyager (automatic curriculum), ExpeL (learning from the failure/success gap).
+
 ### 3.9 Adoption — the skill, the package, the seam
 - **What:** make it trivially adoptable — you write one reward.
 - **How:** the `apply-growing-agent` skill wires it into an existing repo; `GrowingAgent.Quickstart` is a one-call setup; `ILessonStore` is a ~40-line seam for any store.
@@ -127,6 +141,7 @@ A single reference for presenting and defending the work. Part 1 is the story yo
 6. **Portable.** Runs on any OpenAI-compatible model and any vector store; no lock-in, no rebuild.
 7. **Free training data.** The costliest input — labeled examples — is a byproduct of use (~2.7 per interaction), not a budget line. The reward does the labeling.
 8. **Personalization without fine-tuning.** Per-user quality is a *scope* on the same memory, not a per-user model — near-zero marginal cost per user, and no cold start (they inherit global/team lessons on day one).
+9. **Spends effort where it counts.** It abstains/escalates on uncharted cases instead of bluffing (confidence), and drills its weakest spots on purpose (curriculum) — so the stronger model and human attention are used only where they move the reward.
 
 ---
 
@@ -189,6 +204,14 @@ Fine-tuning a model per user is a training job per user. Here personalization is
 **"Privacy — can one user's data leak to another via a shared lesson?"**
 Personal lessons are isolated by scope (retrieval never returns another user's `Owner`); only lessons deliberately promoted to global are shared, and those are short *generic rules*, not raw user data. You choose the store and the promotion policy.
 
+### On the huge domain & knowing its limits
+
+**"A domain this big — won't a cheap model just confidently make things up?"**
+That's the real risk, and we handle it head-on. The harness scores its own confidence from the reward, whether any lesson applied (charted vs uncharted), and whether its attempts agreed. On low confidence it **abstains or escalates instead of bluffing** — and the miss becomes the next lesson. Proven in `confbench` (Answer / Verify / Escalate / Abstain). We chose the huge domain deliberately as a stress test: if it compounds here, it works anywhere.
+
+**"Does it only learn from whatever users happen to do, or can it improve on purpose?"**
+Both. Passive capture learns from ordinary use; the **curriculum** (`curriculum`) then reads the exhaust — the checks failing most, the unproven lessons, the regressing ones — and ranks what to *drill next*. So improvement is directed, not just lucky.
+
 ### Senior developer
 - **"How does the reward stay reliable — isn't LLM-as-judge gameable?"** Prefer deterministic checks; use an LLM critic only as an *extra* signal, never the sole score; if you must judge with a model, use a *different/stronger* one than the generator (self-enhancement bias). We inherit this discipline from the CRITIC / self-reward literature.
 - **"Thread-safety / concurrency?"** The stores lock around mutation; the loop is per-request. Cosmos is partitioned by agent. No shared mutable state across requests beyond the store.
@@ -242,7 +265,7 @@ Personal lessons are isolated by scope (retrieval never returns another user's `
 |---|---|
 | Cheap+harness matches frontier pass rate (10/15 each) | **Measured** on a live Foundry model — reproduce with `costbench` |
 | Frontier quality at ~72% cost via escalation | **Measured** — reproduce with `escbench` |
-| Poisoning defense (15/15), consolidation (6→2), skill transfer (0→100%), lifecycle (7/7), pipeline (12→6), personalization (10/10) | **Mechanism · deterministic** — offline, self-verifying, CI-gated |
+| Poisoning defense (15/15), consolidation (6→2), skill transfer (0→100%), lifecycle (7/7), pipeline (12→6), personalization (10/10), confidence/abstention (4/4), curriculum (5/5) | **Mechanism · deterministic** — offline, self-verifying, CI-gated |
 | Flywheel export (SFT/pref/RL) + the data-value meter (lessons/examples mined) | **Real data pipeline** — genuine fine-tune input; example count exact |
 | "~$X labeling avoided" | **Estimate** — count is exact, dollar figure is at an assumed $/example rate (shown as "≈"), not revenue |
 | The compounding *bake* (context→weights) | **Mechanism demo** offline; the export is real, the actual fine-tune is the one remaining live step |
