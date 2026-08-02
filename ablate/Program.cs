@@ -33,7 +33,8 @@ if (!ToolLoop.Enabled)
     return;
 }
 
-var tickers = new[] { "VNM", "FPT", "HPG", "MWG" };
+var tickers = new[] { "VNM", "FPT", "HPG", "MWG", "VCB", "MSN" };   // wider suite ⇒ finer granularity, less noise
+int seeds = int.TryParse(Environment.GetEnvironmentVariable("AGENT_ABLATE_SEEDS"), out var sv) && sv > 0 ? sv : 1;
 var strong = Environment.GetEnvironmentVariable("AGENT_LLM_MODEL_STRONG");
 
 AgentContext Ctx(string ticker) => new()
@@ -78,7 +79,7 @@ async Task<(double score, int calls, long tokens)> Run(string label, bool harnes
     return (total / tickers.Length, calls, usage.Prompt + usage.Completion);
 }
 
-Console.WriteLine($"ablate · model={Environment.GetEnvironmentVariable("AGENT_LLM_MODEL")} · suite={tickers.Length} tickers · strong={(string.IsNullOrWhiteSpace(strong) ? "(unset)" : strong)}\n");
+Console.WriteLine($"ablate · model={Environment.GetEnvironmentVariable("AGENT_LLM_MODEL")} · suite={tickers.Length} tickers · seeds={seeds} · strong={(string.IsNullOrWhiteSpace(strong) ? "(unset)" : strong)}\n");
 
 var configs = new List<(string label, Func<Task<(double, int, long)>> run)>
 {
@@ -96,13 +97,18 @@ Console.WriteLine(new string('─', 56));
 double? prev = null;
 foreach (var (label, run) in configs)
 {
-    var (score, calls, tokens) = await run();
+    // average over `seeds` runs so a small-suite quality delta reflects the lever, not model variance.
+    double sSum = 0; long cSum = 0, tSum = 0;
+    for (var i = 0; i < seeds; i++) { var (sc, ca, to) = await run(); sSum += sc; cSum += ca; tSum += to; }
+    var score = sSum / seeds; var calls = cSum / seeds; var tokens = tSum / seeds;
     var delta = prev is null ? "  —" : (score - prev.Value >= 0 ? "+" : "") + ((score - prev.Value) * 100).ToString("0.0") + "pp";
     Console.WriteLine($"{label,-22} {score * 100,6:0.0}%   {delta,-7} {calls,-7} {tokens,-8}");
     prev = score;
 }
 Console.WriteLine(new string('─', 56));
 Console.WriteLine("quality = mean reward across the suite (5 constraints, partial credit) · calls = model generations · Δ = marginal lift over the row above.");
+if (seeds == 1)
+    Console.WriteLine("NOTE: seeds=1 on a small suite is DIRECTIONAL and noisy — a single run can't cleanly separate a lever's effect from model variance. Set AGENT_ABLATE_SEEDS=3+ for a stable table before quoting numbers.");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The agent under test: write a one-line note that satisfies 5 checkable constraints.

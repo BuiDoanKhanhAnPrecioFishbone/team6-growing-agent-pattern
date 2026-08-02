@@ -8,9 +8,11 @@ using AIAssistant.Harness;
 //   2) mini + harness (r1)  — best-of-N + revise + memory, first exposure (cold)
 //   3) mini + harness (r2)  — the SAME suite again, memory now warm
 //   4) frontier             — one call to a bigger model (AGENT_LLM_MODEL_STRONG)
-// For each: quality (reward pass-rate) AND cost ($ from real token usage). The claim to test:
-//   mini+harness ≈ frontier QUALITY, and while frontier stays flat-expensive, the harness gets
-//   CHEAPER run-over-run as it learns. Live-only. See docs/FOUNDRY-SETUP.md.
+// For each: quality (reward pass-rate) AND cost ($ from real token usage). The defensible claims:
+//   • mini+harness reaches ~frontier QUALITY at a fraction of frontier COST, and
+//   • the harness COMPOUNDS ON QUALITY run-over-run (r2 >= r1) as it recalls lessons.
+//   Per-run cost is roughly flat — injected lessons add tokens, recalled lessons save iterations;
+//   a few-percent run-to-run delta is noise, NOT a "gets cheaper" trend. Live-only. See docs/FOUNDRY-SETUP.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 if (!ToolLoop.Enabled)
@@ -108,7 +110,7 @@ Console.WriteLine($"{"mode",-24} {"qual",-5} {"cost $",-11} tokens (in + out)");
 Console.WriteLine(new string('─', 64));
 Console.WriteLine(Row("bare mini", bareOk, bareC, bareU));
 Console.WriteLine(Row("mini + harness (r1)", h1ok, h1C, h1u));
-Console.WriteLine(Row("mini + harness (r2)", h2ok, h2C, h2u) + (h2C < h1C ? "  ← learned" : ""));
+Console.WriteLine(Row("mini + harness (r2)", h2ok, h2C, h2u) + (h2ok > h1ok ? "  ← learned" : ""));
 if (frOk >= 0) Console.WriteLine(Row("frontier", frOk, frC, frU));
 Console.WriteLine();
 
@@ -117,13 +119,15 @@ if (frOk >= 0)
     var qMatch = h2ok >= frOk ? "matches" : $"{h2ok}/{N} vs {frOk}/{N}";
     var pct = frC > 0 ? h2C / frC * 100 : 0;
     Console.WriteLine($"→ mini+harness {qMatch} frontier quality at ~{pct:0}% of frontier cost (warm run).");
-    if (h2C < h1C) Console.WriteLine($"→ frontier costs the same every time; the harness dropped {(1 - h2C / h1C) * 100:0}% from run 1 → run 2 as it learned.");
 }
 else
-{
-    Console.WriteLine("→ set AGENT_LLM_MODEL_STRONG to add the frontier column and get the quality/cost ratio.");
-    if (h2C < h1C) Console.WriteLine($"→ the harness got {(1 - h2C / h1C) * 100:0}% cheaper from run 1 → run 2 as it learned (same quality).");
-}
+    Console.WriteLine("→ set AGENT_LLM_MODEL_STRONG to add the frontier column and the quality/cost ratio.");
+
+// honest run-over-run read: report QUALITY compounding; do NOT dress a few-% cost delta as a trend.
+var trend = h2ok > h1ok ? $"improved {h1ok}→{h2ok}/{N} as it recalled lessons"
+          : h2ok == h1ok ? $"held quality ({h2ok}/{N})"
+          : $"varied {h1ok}→{h2ok}/{N} (small suite ⇒ noisy)";
+Console.WriteLine($"→ run 1 → run 2: the harness {trend}. Per-run cost is roughly flat — injected lessons add tokens, recall saves iterations; don't read a few-% delta as a trend.");
 
 // ── the reasoning agent + shared scorer ──
 static class Score
