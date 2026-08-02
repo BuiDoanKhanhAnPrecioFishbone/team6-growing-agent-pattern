@@ -66,14 +66,16 @@ public sealed class SemanticLessonStore : ILessonStore
             // and ACTIVE (not a superseded tombstone — those are kept only for audit history).
             candidates = _lessons
                 .Where(l => l.Agent == agent && (l.Sector == features.Sector || l.Sector == "*")
-                            && l.Trust != Trust.Quarantined && string.IsNullOrEmpty(l.ValidTo))
+                            && l.Trust != Trust.Quarantined && string.IsNullOrEmpty(l.ValidTo)
+                            && Scope.Matches(l.Owner, features))          // hierarchical: global + this tenant + this user
                 .Select(Clone).ToList();
         }
         if (candidates.Count == 0) return Array.Empty<Lesson>();
 
-        // No situation → v1 behaviour (hit-rate then importance ordering).
+        // No situation → hit-rate then importance ordering, most-specific scope first (user > tenant > global).
         if (string.IsNullOrWhiteSpace(features.Situation))
-            return candidates.OrderByDescending(l => l.HitRate).ThenByDescending(l => l.Importance).ThenByDescending(l => l.Date).Take(topK).ToList();
+            return candidates.OrderByDescending(l => Scope.Rank(l.Owner)).ThenByDescending(l => l.HitRate)
+                             .ThenByDescending(l => l.Importance).ThenByDescending(l => l.Date).Take(topK).ToList();
 
         // Step 2 — vector shortlist: cosine of the situation against each lesson's embedding, folding in
         // decay + trust when lifecycle is on, and a gentle IMPORTANCE nudge (Generative-Agents: a stored
@@ -82,7 +84,8 @@ public sealed class SemanticLessonStore : ILessonStore
         var shortlisted = candidates
             .Select(l => (l, score: (l.Embedding.Length > 0 ? Vec.Cosine(q, l.Embedding) : 0)
                                     * (_halfLife > 0 ? RecencyWeight(l) * TrustWeight(l) : 1.0)
-                                    * (0.7 + 0.3 * Math.Clamp(l.Importance, 0, 1))))
+                                    * (0.7 + 0.3 * Math.Clamp(l.Importance, 0, 1))
+                                    * (1.0 + 0.12 * Scope.Rank(l.Owner))))  // a user's own lesson wins at equal relevance
             .OrderByDescending(x => x.score).ThenByDescending(x => x.l.HitRate)
             .Take(Math.Max(topK, _shortlist))
             .Select(x => x.l)
@@ -356,5 +359,6 @@ public sealed class SemanticLessonStore : ILessonStore
         LearnedFrom = l.LearnedFrom, Date = l.Date, TimesApplied = l.TimesApplied, TimesHelped = l.TimesHelped, HitRate = l.HitRate,
         Type = l.Type, Condition = l.Condition, Embedding = l.Embedding, Trust = l.Trust, LastUsed = l.LastUsed,
         Importance = l.Importance, HelpedContexts = new(l.HelpedContexts), ValidTo = l.ValidTo, SupersededBy = l.SupersededBy,
+        Owner = l.Owner,
     };
 }

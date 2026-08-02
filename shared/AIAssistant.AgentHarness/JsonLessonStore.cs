@@ -24,8 +24,10 @@ public sealed class JsonLessonStore : ILessonStore
         lock (_lock)
         {
             IReadOnlyList<Lesson> result = _lessons
-                .Where(l => l.Agent == agent && (l.Sector == features.Sector || l.Sector == "*"))
-                .OrderByDescending(l => l.HitRate)
+                .Where(l => l.Agent == agent && (l.Sector == features.Sector || l.Sector == "*")
+                            && Scope.Matches(l.Owner, features))     // hierarchical scope: global + tenant + user
+                .OrderByDescending(l => Scope.Rank(l.Owner))         // most-specific (user) first
+                .ThenByDescending(l => l.HitRate)
                 .ThenByDescending(l => l.Date)
                 .Take(topK)
                 .Select(Clone)
@@ -102,5 +104,6 @@ public sealed class JsonLessonStore : ILessonStore
         TimesApplied = l.TimesApplied, TimesHelped = l.TimesHelped, HitRate = l.HitRate,
         Type = l.Type, Condition = l.Condition, Embedding = l.Embedding, Trust = l.Trust, LastUsed = l.LastUsed,
         Importance = l.Importance, HelpedContexts = new(l.HelpedContexts), ValidTo = l.ValidTo, SupersededBy = l.SupersededBy,
+        Owner = l.Owner,
     };
 }

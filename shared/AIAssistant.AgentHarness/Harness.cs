@@ -14,8 +14,10 @@ namespace AIAssistant.Harness;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// <summary>Scoping keys for episodic memory. <see cref="Situation"/> (v2) is a short text of the current
-/// case that semantic retrieval recalls against; empty falls back to hit-rate ordering.</summary>
-public sealed record AgentFeatures(string Sector, IReadOnlyList<string> Tags, string Situation = "");
+/// case that semantic retrieval recalls against; empty falls back to hit-rate ordering. <see cref="User"/> /
+/// <see cref="Tenant"/> (v3) scope the memory — set <see cref="User"/> and lessons personalize to that person
+/// while still inheriting team + global lessons (hierarchical memory). Both empty ⇒ global (the original behavior).</summary>
+public sealed record AgentFeatures(string Sector, IReadOnlyList<string> Tags, string Situation = "", string User = "", string Tenant = "");
 
 /// <summary>
 /// The reward — one function, triple duty: hard <see cref="Pass"/> gates, a graded <see cref="Score"/>,
@@ -74,6 +76,7 @@ public sealed class Lesson
     public List<string> HelpedContexts { get; set; } = new();   // DISTINCT situations it helped in — corroboration for promotion
     public string ValidTo { get; set; } = "";                   // bi-temporal tombstone (non-empty ⇒ superseded, never retrieved)
     public string SupersededBy { get; set; } = "";              // provenance: the lesson that replaced this one
+    public string Owner { get; set; } = "";                     // scope: "" = global, "tenant:x", "user:y" (personalization)
 }
 
 /// <summary>Everything an agent needs for one run. The Input is the candidate-file fragment (passthrough).</summary>
@@ -269,6 +272,10 @@ public sealed class AgentHarness
             var lesson = agent.LessonFor(trigger, ctx);
             if (lesson is null) continue;
             lesson.Date = _clock();
+            // scope the lesson to the request: personalize when a user/tenant is set, else global (unchanged).
+            if (string.IsNullOrEmpty(lesson.Owner)) lesson.Owner = Scope.Of(ctx.Features);
+            if (!string.IsNullOrEmpty(lesson.Owner) && !lesson.Id.Contains('@'))
+                lesson.Id = $"{lesson.Id}@{lesson.Owner}"; // namespace so users/tenants don't upsert-collide
             await _memory.WriteAsync(lesson, ct);
             learned.Add(lesson.Id);
         }

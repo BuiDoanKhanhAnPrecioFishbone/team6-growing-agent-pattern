@@ -18,8 +18,10 @@ public sealed class InMemoryLessonStore : ILessonStore
         {
             IReadOnlyList<Lesson> r = _lessons
                 .Where(l => l.Agent == agent && (l.Sector == features.Sector || l.Sector == "*")
-                            && l.Trust != Trust.Quarantined && string.IsNullOrEmpty(l.ValidTo))
-                .OrderByDescending(l => l.HitRate).ThenByDescending(l => l.Importance).ThenByDescending(l => l.Date)
+                            && l.Trust != Trust.Quarantined && string.IsNullOrEmpty(l.ValidTo)
+                            && Scope.Matches(l.Owner, features))
+                .OrderByDescending(l => Scope.Rank(l.Owner)).ThenByDescending(l => l.HitRate)
+                .ThenByDescending(l => l.Importance).ThenByDescending(l => l.Date)
                 .Take(topK).ToList();
             return Task.FromResult(r);
         }

@@ -72,24 +72,30 @@ public sealed class CosmosSemanticLessonStore : ILessonStore
     {
         var container = await _container.Value;
         var quarantined = (int)Trust.Quarantined;
+        // hierarchical scope: global (unset/empty owner) + this tenant + this user.
+        var uScope = Scope.User(features.User);
+        var tScope = Scope.Tenant(features.Tenant);
+        const string scopeFilter = " AND ((NOT IS_DEFINED(c.owner)) OR c.owner='' OR c.owner=@u OR c.owner=@t)";
 
         QueryDefinition query;
         if (string.IsNullOrWhiteSpace(features.Situation))
         {
             // No situation → v1 behaviour: hit-rate ordering (drop-in with the JSON/exact stores).
             query = new QueryDefinition(
-                    "SELECT * FROM c WHERE c.agent=@a AND (c.sector=@s OR c.sector='*') AND c.trust != @q ORDER BY c.hitRate DESC")
-                .WithParameter("@a", agent).WithParameter("@s", features.Sector).WithParameter("@q", quarantined);
+                    "SELECT * FROM c WHERE c.agent=@a AND (c.sector=@s OR c.sector='*') AND c.trust != @q" + scopeFilter + " ORDER BY c.hitRate DESC")
+                .WithParameter("@a", agent).WithParameter("@s", features.Sector).WithParameter("@q", quarantined)
+                .WithParameter("@u", uScope).WithParameter("@t", tScope);
         }
         else
         {
             // Situation → embed it and let Cosmos rank by vector distance (nearest first).
             var vec = await _embedder.EmbedAsync(features.Situation, ct);
             query = new QueryDefinition(
-                    "SELECT TOP @k * FROM c WHERE c.agent=@a AND (c.sector=@s OR c.sector='*') AND c.trust != @q " +
-                    "ORDER BY VectorDistance(c.embedding, @vec)")
+                    "SELECT TOP @k * FROM c WHERE c.agent=@a AND (c.sector=@s OR c.sector='*') AND c.trust != @q" + scopeFilter +
+                    " ORDER BY VectorDistance(c.embedding, @vec)")
                 .WithParameter("@k", topK).WithParameter("@a", agent).WithParameter("@s", features.Sector)
-                .WithParameter("@q", quarantined).WithParameter("@vec", vec);
+                .WithParameter("@q", quarantined).WithParameter("@vec", vec)
+                .WithParameter("@u", uScope).WithParameter("@t", tScope);
         }
 
         var results = new List<Lesson>();
