@@ -230,16 +230,7 @@ public static class ToolLoop
             ["temperature"] = temperature,
             ["messages"] = new JsonArray(messages.Select(t => (JsonNode)new JsonObject { ["role"] = t.Role, ["content"] = t.Content }).ToArray()),
         };
-        using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json") };
-        var key = Env("AGENT_LLM_API_KEY");
-        if (!string.IsNullOrWhiteSpace(key))
-        {
-            if ((Env("AGENT_LLM_AUTH") ?? "bearer").ToLowerInvariant() == "api-key") req.Headers.Add("api-key", key);
-            else req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
-        }
-        using var resp = await Http.SendAsync(req, ct);
-        resp.EnsureSuccessStatusCode();
-        var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct));
+        var node = JsonNode.Parse(await PostWithRetryAsync(url, payload.ToJsonString(), ct));
         RecordUsage(node);
         return node?["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? "";
     }
@@ -250,6 +241,44 @@ public static class ToolLoop
         if (node?["usage"] is not JsonObject u) return;
         CostLedger.Add(u["prompt_tokens"]?.GetValue<long>() ?? 0, u["completion_tokens"]?.GetValue<long>() ?? 0);
     }
+
+    // POST with retry/backoff on 429 (tokens-per-minute cap) and 5xx — so a rate limit or a transient blip
+    // rides through instead of crashing a run. Honors Retry-After; otherwise exponential backoff, capped.
+    // Tunable via AGENT_LLM_MAX_RETRIES (default 6). The request is rebuilt each attempt (a sent request
+    // can't be reused). Returns the raw response body.
+    private static async Task<string> PostWithRetryAsync(string url, string bodyJson, CancellationToken ct)
+    {
+        var maxAttempts = Math.Max(1, EnvInt("AGENT_LLM_MAX_RETRIES", 6));
+        for (var attempt = 1; ; attempt++)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, url)
+            { Content = new StringContent(bodyJson, Encoding.UTF8, "application/json") };
+            var key = Env("AGENT_LLM_API_KEY");
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                if ((Env("AGENT_LLM_AUTH") ?? "bearer").ToLowerInvariant() == "api-key") req.Headers.Add("api-key", key);
+                else req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+            }
+            using var resp = await Http.SendAsync(req, ct);
+            if (((int)resp.StatusCode == 429 || (int)resp.StatusCode >= 500) && attempt < maxAttempts)
+            {
+                await Task.Delay(RetryDelay(resp, attempt), ct);
+                continue;
+            }
+            resp.EnsureSuccessStatusCode();
+            return await resp.Content.ReadAsStringAsync(ct);
+        }
+    }
+
+    private static TimeSpan RetryDelay(HttpResponseMessage resp, int attempt)
+    {
+        // honor a numeric Retry-After (seconds) if the service sent one, else exponential backoff: 2,4,8,16,30,30…
+        if (resp.Headers.TryGetValues("Retry-After", out var vals) && int.TryParse(vals.FirstOrDefault(), out var secs) && secs > 0)
+            return TimeSpan.FromSeconds(Math.Min(secs, 60));
+        return TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, attempt)));
+    }
+
+    private static int EnvInt(string k, int d) => int.TryParse(Env(k), out var v) ? v : d;
 
     /// <summary>A completion that includes an image (vision) — grounds generation in a target design, and
     /// lets a critic SEE the target. Reuses AGENT_LLM_*; the deployment must be vision-capable.</summary>
@@ -269,16 +298,7 @@ public static class ToolLoop
                     new JsonObject { ["type"] = "text", ["text"] = user },
                     new JsonObject { ["type"] = "image_url", ["image_url"] = new JsonObject { ["url"] = imageDataUrl } }) }),
         };
-        using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json") };
-        var key = Env("AGENT_LLM_API_KEY");
-        if (!string.IsNullOrWhiteSpace(key))
-        {
-            if ((Env("AGENT_LLM_AUTH") ?? "bearer").ToLowerInvariant() == "api-key") req.Headers.Add("api-key", key);
-            else req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
-        }
-        using var resp = await Http.SendAsync(req, ct);
-        resp.EnsureSuccessStatusCode();
-        var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct));
+        var node = JsonNode.Parse(await PostWithRetryAsync(url, payload.ToJsonString(), ct));
         RecordUsage(node);
         return node?["choices"]?[0]?["message"]?["content"]?.GetValue<string>() ?? "";
     }
@@ -296,16 +316,7 @@ public static class ToolLoop
             ["tools"] = toolDefs.DeepClone(),
             ["tool_choice"] = "auto",
         };
-        using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json") };
-        var key = Env("AGENT_LLM_API_KEY");
-        if (!string.IsNullOrWhiteSpace(key))
-        {
-            if ((Env("AGENT_LLM_AUTH") ?? "bearer").ToLowerInvariant() == "api-key") req.Headers.Add("api-key", key);
-            else req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
-        }
-        using var resp = await Http.SendAsync(req, ct);
-        resp.EnsureSuccessStatusCode();
-        var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct));
+        var node = JsonNode.Parse(await PostWithRetryAsync(url, payload.ToJsonString(), ct));
         RecordUsage(node);
         return ((node?["choices"]?[0]?["message"] as JsonObject)?.DeepClone() as JsonObject) ?? new JsonObject { ["content"] = "" };
     }
