@@ -19,7 +19,7 @@ A single reference for presenting and defending the work. Part 1 is the story yo
 
 **The economics — the diamond.** The most expensive thing in AI is labeled data. We get it *free*: every time someone uses the agent, the reward labels which step was right or wrong. Ordinary usage is the coal; the reward loop is the press; verified lessons + labeled examples are the diamonds. No user research, no labeling budget — ~2.7 labeled examples mined per interaction, forever.
 
-**The proof.** On a live Foundry model, gpt-4.1-mini + harness matches gpt-5.1's pass rate, and escalation reaches frontier quality at ~72% of the cost. Everything else — compounding, poisoning-resistance, skill-transfer, self-summarizing memory, personalization, the free-data meter, confidence/abstention, and a self-directed practice curriculum — is proven by deterministic benchmarks you can re-run in one command.
+**The proof.** Measured live (gpt-4.1-mini vs gpt-5.1, 15 reasoning traps): used as an **escalation router**, mini+harness **beats** frontier quality (11/15 vs 10/15) while paying the frontier premium on only 6/15 tasks; bare-mini+escalate **matches** frontier (10/15) at **~85%** of always-frontier cost. The revise loop alone lifts the cheap model **80% → 94%**. (Honest caveat from that same run: run the cheap model *harder* — best-of-N without escalation — and it is *not* cheaper than an efficient frontier; the cost win is routing, not brute force.) Everything else — compounding, poisoning-resistance, skill-transfer, self-summarizing memory, personalization, the free-data meter, confidence/abstention, and a self-directed practice curriculum — is proven by deterministic benchmarks you can re-run in one command.
 
 **The honest line (say this — it builds trust).** "We're not a competitor to Microsoft Agent Framework or Foundry — those are the runtime. We're the *learning layer* they don't have. And where we overlap with them (tool-calling, MCP), use theirs; ours is deliberately minimal so it's portable."
 
@@ -134,7 +134,7 @@ A single reference for presenting and defending the work. Part 1 is the story yo
 ## Part 4 — Why it's efficient (the economics)
 
 1. **No GPU, no training to ship.** The fast loop is inference-only. You get better answers today with an API key.
-2. **Cheap base + targeted spend.** A small model + best-of-N + revise closes most of the gap; escalation buys the frontier only on the hard minority (~72% of always-frontier cost, measured).
+2. **Cheap base + targeted spend.** The revise loop lifts the cheap model most of the way (80%→94%); escalation buys the frontier only on the hard minority (~40% of tasks) — matching frontier quality at ~85% of always-frontier cost, or beating it at ~97%. The saving scales with how expensive the frontier is; against a cheap, efficient frontier it is modest, so escalation — not best-of-N — is the cost lever.
 3. **Bounded context.** Retrieval is top-K; a token cap and consolidation keep injected context small as memory grows, so cost doesn't creep.
 4. **Compounding, not repetition.** A lesson learned once is recalled forever — the second run on a task passes on the first try (pipeline: 12→6 iterations).
 5. **Graduation removes ongoing cost.** Once a lesson is baked into weights, it stops costing context tokens per call — same quality, lower steady-state cost.
@@ -173,7 +173,7 @@ No — those are the *runtime* (orchestration, tools, hosting, evals). None of t
 RAG retrieves *documents* to answer a question. We retrieve *lessons the agent learned from its own mistakes*, scored by a reward, with trust states and a feedback loop that writes new ones. RAG has no reward, no learning, no trust lifecycle. (You can use RAG *and* this — they're orthogonal.)
 
 **"Did you actually measure the cost/quality, or is it a slide?"**
-Two headline numbers are measured on a live Foundry model (gpt-4.1-mini vs gpt-5.1) — reproduce with `costbench`/`escbench`. Everything else is a *deterministic* benchmark that exits non-zero if it regresses — run `pwsh scripts/run-evidence.ps1`. We also *walked back* an earlier "it gets cheaper as it learns" claim after rigorous measurement showed injected lessons add prompt tokens — so the numbers you're hearing survived us trying to break them.
+The headline numbers are measured on a live Foundry model (gpt-4.1-mini vs gpt-5.1) — reproduce with `escbench`. Everything else is a *deterministic* benchmark that exits non-zero if it regresses — run `pwsh scripts/run-evidence.ps1`. And we keep walking claims back when the data says so: first "it gets cheaper as it learns" (injected lessons add tokens), then — after this live run — "the standalone harness is cheaper than the frontier" (an efficient frontier like gpt-5.1 can beat best-of-N on both quality and cost; the win is escalation routing, not brute force). What survives that scrutiny is what you're hearing.
 
 **"The compounding-to-weights curve — is the bake real?"**
 The *export* and *graduation* code is real, and the `sft.jsonl` it writes is a genuine Foundry fine-tune input. In the offline demo the bake is *simulated* to show the arc end-to-end without a GPU. To make the post-bake column measured, we run one real Foundry fine-tune — that's the single remaining live step, and it's wired.
@@ -185,7 +185,7 @@ It can't, by design: retrieval returns a bounded top-K (default 3), so context c
 This is our strongest story. The memory is an attack surface Foundry's input guards don't see. We defend the *write* path: injection validation quarantines crafted lessons; a lesson can't earn trust by repeating one case (corroboration across ≥2 distinct situations); a periodic audit re-screens everything. `guardbench` runs four attacks and all fail (15/15), framed against OWASP's Agentic Top-10 and MINJA.
 
 **"Why not just use a bigger model, or wait for cheap models to get good?"**
-Two reasons. (1) Cost at scale: a product doing millions of calls can't pay frontier prices for every one; cheap-first + escalate is 72% of always-frontier. (2) A bigger model still starts every conversation from zero — it doesn't *learn your domain from use*. Our layer makes *whatever* model you run improve on *your* tasks, and it's the piece that keeps paying off as models get cheaper.
+Two reasons. (1) Cost at scale: a product doing millions of calls can escalate only the hard minority — bare-mini+escalate matches frontier quality at ~85% of always-frontier cost (harness+escalate beats it at ~97%), paying the premium on ~40% of tasks; the saving grows as the frontier gets pricier. (2) A bigger model still starts every conversation from zero — it doesn't *learn your domain from use*. Our layer makes *whatever* model you run improve on *your* tasks, and it's the piece that keeps paying off as models get cheaper.
 
 **"What's actually novel here vs Reflexion / ExpeL / Voyager?"**
 The individual mechanisms aren't new — we cite them. What's assembled here and largely absent from the field: a **trust lifecycle** on memory, a **write-path security model** (poisoning defense), **verified-gated** export that avoids model collapse, and a **portable, adoption-first packaging** (one reward, any model, any store, install-as-a-skill). We're honest that it's strong *engineering synthesis* grounded in research, not a new algorithm.
@@ -263,13 +263,16 @@ Both. Passive capture learns from ordinary use; the **curriculum** (`curriculum`
 
 | Claim | Status |
 |---|---|
-| Cheap+harness matches frontier pass rate (10/15 each) | **Measured** on a live Foundry model — reproduce with `costbench` |
-| Frontier quality at ~72% cost via escalation | **Measured** — reproduce with `escbench` |
+| mini+harness+escalate **beats** frontier (11/15 vs 10/15), escalating 6/15 | **Measured** (escbench, gpt-4.1-mini vs gpt-5.1) |
+| bare-mini+escalate **matches** frontier (10/15) at ~85% of always-frontier cost | **Measured** (escbench) |
+| The revise loop lifts the cheap model 80% → 94% | **Measured** (ablate, 3 seeds); other levers situational, not per-lever quality gains |
 | Poisoning defense (15/15), consolidation (6→2), skill transfer (0→100%), lifecycle (7/7), pipeline (12→6), personalization (10/10), confidence/abstention (4/4), curriculum (5/5) | **Mechanism · deterministic** — offline, self-verifying, CI-gated |
 | Flywheel export (SFT/pref/RL) + the data-value meter (lessons/examples mined) | **Real data pipeline** — genuine fine-tune input; example count exact |
 | "~$X labeling avoided" | **Estimate** — count is exact, dollar figure is at an assumed $/example rate (shown as "≈"), not revenue |
 | The compounding *bake* (context→weights) | **Mechanism demo** offline; the export is real, the actual fine-tune is the one remaining live step |
 | ART / GRPO slow loop | **Designed & wired**, not run here — SFT-first is the shipped rung |
 | "It gets cheaper as it learns" | **Retired** after measurement (injected lessons add tokens) — we say so, and it's a credibility point |
+| "Standalone harness ≈ frontier at a fraction of cost" | **Retired** — an efficient frontier (gpt-5.1) beat best-of-N on quality *and* cost; the cost win is escalation routing, not running the cheap model harder |
+| "Every amplifier lever adds quality" | **Retired** — measured, only the revise loop reliably lifts quality on the note task; memory/best-of-N are cost/robustness levers, self-verify can hurt |
 
 Lead with the honest core, then the number. That posture is why the pitch holds up under a sharp question.
