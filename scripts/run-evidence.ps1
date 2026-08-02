@@ -12,10 +12,11 @@ $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
 
 $deterministic = @(
-  @{ name = "memory lifecycle  (decay / evict / conflict / dedup)"; proj = "memlife"    },
-  @{ name = "consolidation     (memory self-summarizes, 6->2)";     proj = "memcon"     },
-  @{ name = "guardrails        (memory poisoning defense, MINJA)";  proj = "guardbench" },
-  @{ name = "skill tier        (contrast -> verify -> transfer)";   proj = "skillbench" }
+  @{ name = "memory lifecycle  (decay / evict / conflict / dedup)"; proj = "memlife"     },
+  @{ name = "consolidation     (memory self-summarizes, 6->2)";     proj = "memcon"      },
+  @{ name = "guardrails        (memory poisoning defense, MINJA)";  proj = "guardbench"  },
+  @{ name = "skill tier        (contrast -> verify -> transfer)";   proj = "skillbench"  },
+  @{ name = "personalization   (scoped memory, no leakage)";        proj = "personalize" }
 )
 
 $pass = 0; $fail = 0
@@ -28,6 +29,7 @@ foreach ($b in $deterministic) {
 
 Write-Host "`nMECHANISM / PIPELINE DEMOS (offline, emit artifacts)`n" -ForegroundColor Cyan
 dotnet run --project slowloop *> $null; Write-Host "  [ran ] slowloop  -> compounding.json + sft.jsonl (fast loop -> bake -> graduate)"
+dotnet run --project diamonds *> $null; Write-Host "  [ran ] diamonds  -> diamonds.json (data-value meter + coal->diamonds)"
 dotnet run --project flywheel *> $null; Write-Host "  [ran ] flywheel  -> sft / preference / rl jsonl (training-ready export)"
 dotnet run --project orchestrator -- --fresh *> $null; Write-Host "  [ran ] pipeline  -> fast-loop compounding (12 -> 6 iterations)"
 

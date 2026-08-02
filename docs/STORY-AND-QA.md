@@ -13,10 +13,13 @@ A single reference for presenting and defending the work. Part 1 is the story yo
 **What we built.** A portable harness (BCL-only, runs on Azure AI Foundry, no GPU) with:
 - a **fast loop** (generate → evaluate → retrieve lesson → revise → best-of-N → escalate → learn),
 - a **governed memory** (trust states, decay, eviction, conflict-detection, consolidation, injection defense),
+- a **scoped memory** (global ↔ team ↔ user) so the same loop **personalizes per user** — no per-user fine-tuning,
 - a **skill tier** (reusable *procedures*, not just rules),
 - and a **flywheel** that exports every run as training data, so the same reward can later fine-tune the model (the "slow loop").
 
-**The proof.** On a live Foundry model, gpt-4.1-mini + harness matches gpt-5.1's pass rate, and escalation reaches frontier quality at ~72% of the cost. Everything else — compounding, poisoning-resistance, skill-transfer, self-summarizing memory — is proven by deterministic benchmarks you can re-run in one command.
+**The economics — the diamond.** The most expensive thing in AI is labeled data. We get it *free*: every time someone uses the agent, the reward labels which step was right or wrong. Ordinary usage is the coal; the reward loop is the press; verified lessons + labeled examples are the diamonds. No user research, no labeling budget — ~2.7 labeled examples mined per interaction, forever.
+
+**The proof.** On a live Foundry model, gpt-4.1-mini + harness matches gpt-5.1's pass rate, and escalation reaches frontier quality at ~72% of the cost. Everything else — compounding, poisoning-resistance, skill-transfer, self-summarizing memory, personalization, and the free-data meter — is proven by deterministic benchmarks you can re-run in one command.
 
 **The honest line (say this — it builds trust).** "We're not a competitor to Microsoft Agent Framework or Foundry — those are the runtime. We're the *learning layer* they don't have. And where we overlap with them (tool-calling, MCP), use theirs; ours is deliberately minimal so it's portable."
 
@@ -93,6 +96,20 @@ A single reference for presenting and defending the work. Part 1 is the story yo
 - **Code:** `SemanticLessonStore.cs`, `MemoryAudit.cs`; proof in `guardbench` (15/15).
 - **References:** OWASP Agentic Top-10 (persistent memory poisoning), MINJA-style memory-injection attacks (>95% vs input-only guards), MemAudit.
 
+### 3.10 The data thesis — `DataValue` (coal → diamonds)
+- **What:** put a number on the training data mined for free from ordinary use.
+- **How:** every run exports verified lessons + labeled examples (SFT/preference/RL lines); `DataValue.Estimate` counts them and, at a configurable per-example rate, the labeling spend avoided.
+- **Code:** `DataValue.cs`; the meter + each lesson's before→after in `diamonds`.
+- **Why efficient:** the single biggest cost in improving an AI — labeled data — becomes a byproduct of usage, not a budget line. The reward labels every step; you never run a labeling project.
+- **References:** the implicit-feedback / RLHF lineage — but step-level and in-context, not a final thumb feeding a quarterly retrain.
+
+### 3.11 Personalization — `Scope` (smarter *and* yours)
+- **What:** the same free-data loop, scoped, gives per-user personalization.
+- **How:** a lesson has an `Owner` — global / `tenant:x` / `user:y`. Retrieval merges the scopes that apply and ranks the most specific first (user > tenant > global); the harness stamps learned lessons with the session's scope and namespaces the id so users never collide.
+- **Code:** `Scope.cs`, `AgentFeatures.User/Tenant`, `Lesson.Owner`; proof in `personalize`.
+- **Why efficient:** personalization with **no per-user fine-tuning** — it's a scope, not a new system; a brand-new user inherits global/team lessons on day one (no cold-start void), then personalizes from their own use.
+- **References:** hierarchical/multi-tenant memory; this credibility-axis scoping is our own.
+
 ### 3.9 Adoption — the skill, the package, the seam
 - **What:** make it trivially adoptable — you write one reward.
 - **How:** the `apply-growing-agent` skill wires it into an existing repo; `GrowingAgent.Quickstart` is a one-call setup; `ILessonStore` is a ~40-line seam for any store.
@@ -108,6 +125,8 @@ A single reference for presenting and defending the work. Part 1 is the story yo
 4. **Compounding, not repetition.** A lesson learned once is recalled forever — the second run on a task passes on the first try (pipeline: 12→6 iterations).
 5. **Graduation removes ongoing cost.** Once a lesson is baked into weights, it stops costing context tokens per call — same quality, lower steady-state cost.
 6. **Portable.** Runs on any OpenAI-compatible model and any vector store; no lock-in, no rebuild.
+7. **Free training data.** The costliest input — labeled examples — is a byproduct of use (~2.7 per interaction), not a budget line. The reward does the labeling.
+8. **Personalization without fine-tuning.** Per-user quality is a *scope* on the same memory, not a per-user model — near-zero marginal cost per user, and no cold start (they inherit global/team lessons on day one).
 
 ---
 
@@ -155,6 +174,20 @@ Two reasons. (1) Cost at scale: a product doing millions of calls can't pay fron
 
 **"What's actually novel here vs Reflexion / ExpeL / Voyager?"**
 The individual mechanisms aren't new — we cite them. What's assembled here and largely absent from the field: a **trust lifecycle** on memory, a **write-path security model** (poisoning defense), **verified-gated** export that avoids model collapse, and a **portable, adoption-first packaging** (one reward, any model, any store, install-as-a-skill). We're honest that it's strong *engineering synthesis* grounded in research, not a new algorithm.
+
+### On personalization (a frequent PO/PM/senior question)
+
+**"Can this personalize per user, or is it one shared brain?"**
+Both — and that's the point. Personalization is a *memory scope*: set the user id and lessons learned in their sessions are scoped to them (`user:alice`), while they still inherit team and global lessons. One mechanism, two wins: shared lessons compound for everyone; personal lessons make it theirs. Proven in `personalize` (10/10) — same agent, three users, three different answers, zero leakage.
+
+**"Doesn't per-user personalization mean a cold start for every new user?"**
+No — the hierarchy solves it. A brand-new user inherits all global (and their team's) lessons on day one, then personalizes from their own use. There's never an empty-memory void.
+
+**"How is this cheaper than per-user fine-tuning?"**
+Fine-tuning a model per user is a training job per user. Here personalization is a *scope filter* on one shared memory — near-zero marginal cost per user, instant, and inspectable/deletable (GDPR-friendly) in a way a per-user model isn't.
+
+**"Privacy — can one user's data leak to another via a shared lesson?"**
+Personal lessons are isolated by scope (retrieval never returns another user's `Owner`); only lessons deliberately promoted to global are shared, and those are short *generic rules*, not raw user data. You choose the store and the promotion policy.
 
 ### Senior developer
 - **"How does the reward stay reliable — isn't LLM-as-judge gameable?"** Prefer deterministic checks; use an LLM critic only as an *extra* signal, never the sole score; if you must judge with a model, use a *different/stronger* one than the generator (self-enhancement bias). We inherit this discipline from the CRITIC / self-reward literature.
@@ -209,8 +242,9 @@ The individual mechanisms aren't new — we cite them. What's assembled here and
 |---|---|
 | Cheap+harness matches frontier pass rate (10/15 each) | **Measured** on a live Foundry model — reproduce with `costbench` |
 | Frontier quality at ~72% cost via escalation | **Measured** — reproduce with `escbench` |
-| Poisoning defense (15/15), consolidation (6→2), skill transfer (0→100%), lifecycle (7/7), pipeline (12→6) | **Mechanism · deterministic** — offline, self-verifying, CI-gated |
-| Flywheel export (SFT/pref/RL) | **Real data pipeline** — genuine fine-tune input |
+| Poisoning defense (15/15), consolidation (6→2), skill transfer (0→100%), lifecycle (7/7), pipeline (12→6), personalization (10/10) | **Mechanism · deterministic** — offline, self-verifying, CI-gated |
+| Flywheel export (SFT/pref/RL) + the data-value meter (lessons/examples mined) | **Real data pipeline** — genuine fine-tune input; example count exact |
+| "~$X labeling avoided" | **Estimate** — count is exact, dollar figure is at an assumed $/example rate (shown as "≈"), not revenue |
 | The compounding *bake* (context→weights) | **Mechanism demo** offline; the export is real, the actual fine-tune is the one remaining live step |
 | ART / GRPO slow loop | **Designed & wired**, not run here — SFT-first is the shipped rung |
 | "It gets cheaper as it learns" | **Retired** after measurement (injected lessons add tokens) — we say so, and it's a credibility point |
