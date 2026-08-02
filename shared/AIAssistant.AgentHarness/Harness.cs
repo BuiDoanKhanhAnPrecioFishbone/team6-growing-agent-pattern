@@ -36,8 +36,9 @@ public sealed record Reward(
             string.IsNullOrEmpty(critique) ? (pass ? "OK." : "Below the bar.") : critique);
 }
 
-/// <summary>What a lesson is about — drives recall relevance and pruning policy (Memory v2).</summary>
-public enum LessonType { GroundingRule, ToolTip, DomainFact, Strategy }
+/// <summary>What a lesson is about — drives recall relevance and pruning policy (Memory v2).
+/// <see cref="Procedure"/> (v3) is the tier above a rule: a reusable multi-step METHOD, not a one-liner.</summary>
+public enum LessonType { GroundingRule, ToolTip, DomainFact, Strategy, Procedure }
 
 /// <summary>Whether a learned lesson may be injected. Provisional must earn hit-rate or a human gate before
 /// it becomes Verified; Quarantined failed injection-validation and is never injected. (Memory v2.)</summary>

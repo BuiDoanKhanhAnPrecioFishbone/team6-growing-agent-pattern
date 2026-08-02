@@ -14,6 +14,7 @@ public static class Importance
     {
         var b = l.Type switch
         {
+            LessonType.Procedure     => 0.75,  // a reusable method transfers more than a single rule
             LessonType.GroundingRule => 0.72,
             LessonType.DomainFact    => 0.66,
             LessonType.Strategy      => 0.56,
