@@ -293,6 +293,10 @@ public sealed class SemanticLessonStore : ILessonStore
     private static string StableHash(string s)
     { unchecked { uint h = 2166136261; foreach (var c in s) { h ^= c; h *= 16777619; } return h.ToString("x8"); } }
 
+    /// <summary>Remove one lesson by id — used by graduation to evict a lesson the weights have absorbed.</summary>
+    public Task RemoveAsync(string id, CancellationToken ct = default)
+    { lock (_lock) { if (_lessons.RemoveAll(l => l.Id == id) > 0) Save(); } return Task.CompletedTask; }
+
     /// <summary>Wipe the memory — the UI's reset, so a fresh run learns from scratch.</summary>
     public void Clear() { lock (_lock) { _lessons.Clear(); Save(); } }
 
