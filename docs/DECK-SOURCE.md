@@ -6,6 +6,11 @@ Everything needed to build the harness slides: the spoken story, all artifact li
 
 ## 0. The one-liners (pick per slide)
 
+**Positioning (the reframe — use these to open the harness section):**
+- **"Not a layer beside Foundry — the governed, self-improving control loop that closes Foundry's *open* primitives (Model Router, Distillation, RFT, Continuous Eval, Memory) into a flywheel Azure ships the parts for but never assembles."**
+- **"The self-improvement wedge for the whole Microsoft agent ecosystem — one MCP 'Coach' any Copilot Studio, MAF, or Foundry agent adds to start learning from its own usage."**
+
+**Punchy:**
 - **"Don't wait for a stronger model. Start compounding now."**
 - **"The winner isn't who has the strongest AI — it's who starts learning first."**
 - **"Ordinary usage is coal; the reward loop is the press; verified lessons are diamonds."**
@@ -48,40 +53,41 @@ Our harness is a **learning layer** that wraps Azure AI Foundry + MS Agent Frame
 ```mermaid
 flowchart TB
   U["User - chats / uses an AI feature"]
-  U -->|task| LOOP
+  U -->|"task (via Prompt Shields - 1st wall)"| LOOP
 
-  subgraph HARNESS["THE GROWING-AGENT HARNESS - the learning layer (ours)"]
+  subgraph HARNESS["THE GROWING-AGENT HARNESS - governed self-improving control loop (ours)"]
     direction TB
     LOOP["Fast loop: generate - score by REWARD - recall lesson - revise - best-of-N - escalate - LEARN"]
-    MEM[("Governed memory: lessons - trust - scope - guardrails")]
-    FLY["Flywheel to slow loop (ReST-EM) to fine-tune data"]
+    MEM[("Governed memory: trust - decay - scope - write-path defense (2nd wall)")]
+    FLY["Flywheel to slow loop (ReST-EM)"]
     LOOP <-->|inject / learn| MEM
     LOOP --> FLY
   end
 
-  subgraph FOUNDRY["AZURE AI FOUNDRY + MS AGENT FRAMEWORK - the runtime"]
+  subgraph FOUNDRY["AZURE AI FOUNDRY - the mechanisms we WIRE into a loop"]
     direction LR
-    MINI["gpt-4.1-mini - the workhorse"]
-    FRON["gpt-5.1 - frontier"]
-    EMB["text-embedding-3-small"]
-    MAF["MAF / Foundry Agent - we wrap it"]
-    FT["Foundry Fine-tune"]
+    ROUTER["Model Router"]
+    MINI["gpt-4.1-mini / Phi-4 (Foundry Local)"]
+    FRON["gpt-5.1 - frontier teacher"]
+    DR["Distillation + RFT (our reward = grader)"]
+    EVAL["Continuous Eval"]
   end
 
-  LOOP -->|"generate (cheap)"| MINI
-  LOOP -->|"escalate: hard cases only"| FRON
-  MEM -->|embed| EMB
-  FLY -->|sft.jsonl| FT
-  FT -->|baked weights| MINI
+  LOOP -->|reward-gated escalate| ROUTER
+  ROUTER -->|cheap| MINI
+  ROUTER -->|hard cases only| FRON
+  FLY -->|verified data| DR
+  DR -->|baked weights| MINI
+  EVAL -->|"live scores to reward"| LOOP
 
   style HARNESS fill:#eaf3ee,stroke:#1f9d6b,stroke-width:2px,color:#15201b
   style FOUNDRY fill:#eef1f8,stroke:#5666cf,stroke-width:2px,color:#15201b
   style FLY fill:#fff5ea,stroke:#cf8a3b,color:#15201b
   style FRON fill:#f2ecfb,stroke:#5666cf,color:#15201b
-  style FT fill:#fff5ea,stroke:#cf8a3b,color:#15201b
+  style DR fill:#fff5ea,stroke:#cf8a3b,color:#15201b
 ```
 
-**We don't compete with Foundry — we wire its boxes into a loop:** Evaluations → the reward · Memory → curated lessons · Fine-tune ← the flywheel · Guardrails + our write-path defense. *One line: Foundry/MAF give you the runtime to run an agent; they don't make a cheap model grow — our reward loop does.*
+**We don't compete with Foundry — we close its open mechanisms into a loop:** Model Router → reward-gated escalate · Distillation/RFT ← the flywheel (our reward = the grader) · Agent Memory → *governed* memory · Prompt Shields (guards the prompt) + our write-path defense (guards what it learns). *One line: Foundry ships the parts — a router, a distiller, an evaluator, a memory store, a shield — but nobody assembles them into a self-improving loop. That governed loop is ours, callable from any MS agent via MCP / A2A.* See `docs/STANDOUT-IDEAS.md` for the full set of Azure integrations + bigger swings.
 
 In-repo companions: `docs/STORY-AND-QA.md`, `docs/ADOPT.md`, `docs/COSMOS-MEMORY.md`, `docs/FOUNDRY-SETUP.md`, `scripts/run-evidence.ps1` (offline proofs), `scripts/run-live.ps1` (Foundry measurement).
 
