@@ -39,7 +39,49 @@ Everything needed to build the harness slides: the spoken story, all artifact li
 | **The evidence** | every claim, its number, measured vs mechanism vs live | https://claude.ai/code/artifact/1bea249e-a6df-438c-9187-7282c47edaf4 |
 | **Coal → diamonds** | free training data: lessons + labeled examples mined, before→after | https://claude.ai/code/artifact/90a1b3e3-862a-4f99-8373-4e7fd7e98780 |
 | **Story & full Q&A** | narrative, per-part implementation, mixed-audience Q&A, honesty ledger | https://claude.ai/code/artifact/470a3469-0514-4193-8195-ed30a55f93fd |
+| **Architecture** | where the harness sits: our layer wrapping Foundry + MAF + LLM | https://claude.ai/code/artifact/a1c90c68-759f-4fc2-b969-79869e38f512 |
 | **Repo** | all code + benches + docs | https://github.com/BuiDoanKhanhAnPrecioFishbone/team6-growing-agent-pattern |
+
+### Architecture diagram (mermaid — renders directly in slides)
+Our harness is a **learning layer** that wraps Azure AI Foundry + MS Agent Framework; the cheap model does the work, the frontier is called only on escalation, and the reward loop wires Foundry's separate boxes into one loop.
+
+```mermaid
+flowchart TB
+  U["User - chats / uses an AI feature"]
+  U -->|task| LOOP
+
+  subgraph HARNESS["THE GROWING-AGENT HARNESS - the learning layer (ours)"]
+    direction TB
+    LOOP["Fast loop: generate - score by REWARD - recall lesson - revise - best-of-N - escalate - LEARN"]
+    MEM[("Governed memory: lessons - trust - scope - guardrails")]
+    FLY["Flywheel to slow loop (ReST-EM) to fine-tune data"]
+    LOOP <-->|inject / learn| MEM
+    LOOP --> FLY
+  end
+
+  subgraph FOUNDRY["AZURE AI FOUNDRY + MS AGENT FRAMEWORK - the runtime"]
+    direction LR
+    MINI["gpt-4.1-mini - the workhorse"]
+    FRON["gpt-5.1 - frontier"]
+    EMB["text-embedding-3-small"]
+    MAF["MAF / Foundry Agent - we wrap it"]
+    FT["Foundry Fine-tune"]
+  end
+
+  LOOP -->|"generate (cheap)"| MINI
+  LOOP -->|"escalate: hard cases only"| FRON
+  MEM -->|embed| EMB
+  FLY -->|sft.jsonl| FT
+  FT -->|baked weights| MINI
+
+  style HARNESS fill:#eaf3ee,stroke:#1f9d6b,stroke-width:2px,color:#15201b
+  style FOUNDRY fill:#eef1f8,stroke:#5666cf,stroke-width:2px,color:#15201b
+  style FLY fill:#fff5ea,stroke:#cf8a3b,color:#15201b
+  style FRON fill:#f2ecfb,stroke:#5666cf,color:#15201b
+  style FT fill:#fff5ea,stroke:#cf8a3b,color:#15201b
+```
+
+**We don't compete with Foundry — we wire its boxes into a loop:** Evaluations → the reward · Memory → curated lessons · Fine-tune ← the flywheel · Guardrails + our write-path defense. *One line: Foundry/MAF give you the runtime to run an agent; they don't make a cheap model grow — our reward loop does.*
 
 In-repo companions: `docs/STORY-AND-QA.md`, `docs/ADOPT.md`, `docs/COSMOS-MEMORY.md`, `docs/FOUNDRY-SETUP.md`, `scripts/run-evidence.ps1` (offline proofs), `scripts/run-live.ps1` (Foundry measurement).
 
